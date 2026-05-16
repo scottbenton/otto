@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-004"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Post the initial status comment as the authenticated user when no existing claim is found. Format: <!-- otto:v1 status run=<run-uuid> machine=<machine-uuid> source=<comment-type>:<comment-id> --> followed by the [Otto] header and Status: running. After posting, re-fetch the thread one more time. If two Otto status comments now exist for this source, the one with the earlier created_at wins; the loser posts 'aborted (duplicate claim)' to its own comment and stops.",
+  "id": "T-012",
+  "order": 80,
+  "phase": "p1",
+  "status": "open",
+  "title": "Status comment creation and duplicate claim self-abort",
+  "type": "task"
+}

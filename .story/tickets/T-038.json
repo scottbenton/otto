@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-034"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Write the user-facing documentation: README sections covering required GitHub token scopes (repo, read:user), config file format and all options with defaults, first-run walkthrough (generate token → create config → otto start), security model (only authenticated user triggers Otto, no secrets in comments, no force-push), and troubleshooting (stale running comments, worktree conflicts, rate limits).",
+  "id": "T-038",
+  "order": 60,
+  "phase": "p4",
+  "status": "open",
+  "title": "Security model and setup docs (token scopes, config, first run)",
+  "type": "chore"
+}

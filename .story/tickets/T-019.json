@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-018"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Handle two special keyword cases before the main classifier. otto retry: creates a new task referencing the original source comment, to be run fresh with the same context. otto cancel, otto stop, otto disregard, and similar reserved phrases: respond with a status comment explaining that cancellation is not supported in this version, then mark the task ignored. Neither triggers a run or worktree.",
+  "id": "T-019",
+  "order": 50,
+  "phase": "p2",
+  "status": "open",
+  "title": "otto retry and reserved keyword handling (cancel, stop → clarify)",
+  "type": "task"
+}

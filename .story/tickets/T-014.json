@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-001"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Set up pino (or equivalent) for structured JSON logging throughout the daemon. Log levels: debug (poll ticks, comment filtered), info (trigger detected, claim posted, run started/completed), warn (duplicate claim aborted, restart recovery), error (API failures, run failures). Include repo, commentId, runId, and machineId as log fields where relevant.",
+  "id": "T-014",
+  "order": 100,
+  "phase": "p1",
+  "status": "open",
+  "title": "Structured logging",
+  "type": "task"
+}

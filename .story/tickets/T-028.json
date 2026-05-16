@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-001"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Define the AgentRunner TypeScript interface: { id: string, capabilities: { canEdit, canRunShell, supportsStructuredOutput }, run(input: AgentRunInput): Promise<AgentRunResult> }. Define AgentRunInput (task, context, repoPaths, capabilityGrants, timeoutMs) and AgentRunResult (success, summary, branch?, commits?, error?). Implement MockRunner that returns configurable fixed responses — used for all integration tests and E2E flow validation.",
+  "id": "T-028",
+  "order": 40,
+  "phase": "p3",
+  "status": "open",
+  "title": "AgentRunner interface and mock runner",
+  "type": "task"
+}

@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-003"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Implement a runner that spawns a configured shell command as a child process, passing task context via environment variables or a temp file. Capture stdout (truncate to 500 chars for status comment). Enforce the configured timeout using AbortController or a kill timer. On timeout: kill the process and return a failure result. Exit code 0 = success, non-zero = failure. This is the adapter for claude, codex, and any custom command.",
+  "id": "T-029",
+  "order": 50,
+  "phase": "p3",
+  "status": "open",
+  "title": "Generic command runner with timeout",
+  "type": "task"
+}

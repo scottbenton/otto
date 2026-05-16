@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-009"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Before processing a matched comment, check whether its ID is already in the seenCommentIds set for that repo (persisted in state.json). If seen, skip. After successfully posting a status comment (claim), add the comment ID to the set and persist atomically. This prevents reprocessing the same comment across restarts.",
+  "id": "T-010",
+  "order": 60,
+  "phase": "p1",
+  "status": "open",
+  "title": "Seen-comment deduplication across restarts",
+  "type": "task"
+}

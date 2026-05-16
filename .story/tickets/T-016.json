@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-015"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Handle context hydration for PR line comments (pull_request_review_comment). Fetch the review comment, check its position field — if null, the comment is outdated (code it was attached to has changed). For outdated comments, respond with a clarify status update explaining the context is stale rather than attempting to act. For non-outdated comments, fetch the diff hunk (patch field), file path, and current file content via GET /repos/{owner}/{repo}/contents/{path}?ref={head-sha}.",
+  "id": "T-016",
+  "order": 20,
+  "phase": "p2",
+  "status": "open",
+  "title": "GitHub context hydration — PR line comments and outdated detection",
+  "type": "task"
+}

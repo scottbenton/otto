@@ -1,0 +1,32 @@
+{
+  "features": {
+    "handovers": true,
+    "issues": true,
+    "reviews": true,
+    "roadmap": true,
+    "tickets": true
+  },
+  "language": "unknown",
+  "project": "Otto",
+  "type": "generic",
+  "version": 2,
+  "recipeOverrides": {
+    "maxTicketsPerSession": 0,
+    "reviewBackends": [
+      "lenses",
+      "agent"
+    ],
+    "handoverInterval": 3,
+    "stages": {
+      "WRITE_TESTS": {
+        "onExhaustion": "plan",
+        "command": "npm test",
+        "enabled": true
+      },
+      "TEST": {
+        "command": "npm test",
+        "enabled": true
+      }
+    }
+  }
+}

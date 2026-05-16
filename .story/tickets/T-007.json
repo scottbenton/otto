@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-003"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Implement the per-repo polling loop. For each configured repo, on each interval tick: call GET /repos/{owner}/{repo}/issues/comments?since=<lastPolled> and GET /repos/{owner}/{repo}/pulls/comments?since=<lastPolled>, paginate both until exhausted. Subtract one second from lastPolled to overlap the window slightly, then deduplicate by comment ID. Update lastPolled after each successful poll. Run repos in parallel within a single tick.",
+  "id": "T-007",
+  "order": 30,
+  "phase": "p1",
+  "status": "open",
+  "title": "Per-repo polling loop with since-timestamp persistence",
+  "type": "task"
+}

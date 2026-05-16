@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-005"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Implement exponential backoff and retry for the GitHub API client defined in T-005. On RateLimitError: wait until x-ratelimit-reset timestamp. On SecondaryRateLimitError (403 + retry-after header): wait the specified duration. On 5xx: exponential backoff with jitter, max 3 retries. On AuthError or NotFoundError: do not retry, fail immediately. Wrap the paginate() helper so retries are transparent to callers.",
+  "id": "T-036",
+  "order": 40,
+  "phase": "p4",
+  "status": "open",
+  "title": "GitHub API retry/backoff implementation",
+  "type": "task"
+}

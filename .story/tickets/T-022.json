@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-021"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "When a run completes for a target, check whether any new triggers arrived during the run (queued batch). If yes, start the debounce timer fresh for the queued batch. If a debounce timer is still running for a target when a run starts (shouldn't normally happen but could on restart), cancel it to prevent a phantom batch from firing mid-run.",
+  "id": "T-022",
+  "order": 80,
+  "phase": "p2",
+  "status": "open",
+  "title": "Debounce timer cancellation when run completes",
+  "type": "task"
+}

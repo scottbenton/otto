@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-001"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Define the full TypeScript config schema as a typed interface (OttoConfig). Implement a YAML loader that reads from ~/.otto/config.yaml or ./otto.yaml, validates against the schema, and returns a typed config object or throws with a clear error. Use zod for runtime validation. This blocks all tickets that read config values.",
+  "id": "T-003",
+  "order": 30,
+  "phase": "p0",
+  "status": "open",
+  "title": "Config schema/types definition + YAML loader and validation",
+  "type": "task"
+}

@@ -1,0 +1,37 @@
+{
+  "blockers": [],
+  "date": "2026-05-16",
+  "phases": [
+    {
+      "description": "TypeScript scaffold, CLI entry point, config schema, and local state model with machine UUID",
+      "id": "p0",
+      "label": "PHASE 0",
+      "name": "foundation"
+    },
+    {
+      "description": "GitHub API client, authenticated user resolution, polling loop, comment filtering, deduplication, claim gate, status comments, and restart recovery",
+      "id": "p1",
+      "label": "PHASE 1",
+      "name": "polling"
+    },
+    {
+      "description": "Context hydration, task classification, debounce/batch accumulation, concurrency tracking, and status comment lifecycle",
+      "id": "p2",
+      "label": "PHASE 2",
+      "name": "context"
+    },
+    {
+      "description": "Repo and worktree management, AgentRunner interface, command runner, git push, PR creation, and failure reporting",
+      "id": "p3",
+      "label": "PHASE 3",
+      "name": "execution"
+    },
+    {
+      "description": "End-to-end tests with fake GitHub server, CI pipeline, API retry/backoff, operator cleanup commands, and security docs",
+      "id": "p4",
+      "label": "PHASE 4",
+      "name": "hardening"
+    }
+  ],
+  "title": "Otto"
+}

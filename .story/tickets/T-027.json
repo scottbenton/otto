@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-026"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Before handing a worktree to an agent, assert it is clean: run git status --porcelain and fail the run with a clear message if there are uncommitted changes from a previous run. For branch collision (deterministic branch name already exists): if the branch has no unmerged commits relative to the base branch, reset it to the base branch tip and reuse. If the branch has unmerged commits, fail the run with a message rather than silently discarding work.",
+  "id": "T-027",
+  "order": 30,
+  "phase": "p3",
+  "status": "open",
+  "title": "Clean-state assertion and branch collision handling",
+  "type": "task"
+}

@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-16",
+  "createdDate": "2026-05-16",
+  "description": "Set up the TypeScript project from scratch: package.json with name/version/scripts, tsconfig.json with strict mode enabled, eslint with @typescript-eslint, prettier config, and vitest for testing. Scripts: typecheck (tsc --noEmit), lint (eslint), test (vitest), build (tsc). This is the dependency root — all other tickets block on this.",
+  "id": "T-001",
+  "order": 10,
+  "phase": "p0",
+  "status": "complete",
+  "title": "TypeScript scaffold (tsconfig strict, eslint, prettier, vitest)",
+  "type": "task"
+}

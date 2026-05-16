@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-001"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Add a GitHub Actions workflow that runs on push and PR: npm run typecheck, npm run lint, npm run test. Use Node.js 22. Cache node_modules. Fail fast. No secrets required — all tests use the fake GitHub server.",
+  "id": "T-035",
+  "order": 30,
+  "phase": "p4",
+  "status": "open",
+  "title": "CI pipeline (typecheck, lint, test)",
+  "type": "chore"
+}

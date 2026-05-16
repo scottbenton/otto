@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-027"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "After the agent completes and the worktree has commits, run git push origin <branch>. Detect non-fast-forward rejection by checking for '[rejected]' in git output or exit code. On non-fast-forward: fail the run and report in the status comment — never force-push. On success: return the branch name and pushed commit SHAs to the caller.",
+  "id": "T-030",
+  "order": 60,
+  "phase": "p3",
+  "status": "open",
+  "title": "Push with non-fast-forward detection (no force-push)",
+  "type": "task"
+}

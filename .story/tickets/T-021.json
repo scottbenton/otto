@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-023"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "When a trigger is detected for a target (repo + issue number, or repo + PR number) that has no active run, start a debounce timer (default 60s, configurable). Any additional triggers for the same target within the window are added to the current batch. When the timer fires, claim all tasks in the batch and start a single agent run with the full batched context. Each task in the batch gets its own status comment updated individually.",
+  "id": "T-021",
+  "order": 70,
+  "phase": "p2",
+  "status": "open",
+  "title": "Debounce/batch accumulator per target with configurable window",
+  "type": "task"
+}
