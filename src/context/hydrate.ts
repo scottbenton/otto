@@ -100,8 +100,7 @@ async function hydrateFromIssueUrl(
 
   if (issueRaw.pull_request !== undefined) {
     const pullsUrl = issueUrl.replace(/\/issues\/(\d+)$/, "/pulls/$1");
-    const [{ comments, truncated }, pullRaw, reviewsRaw] = await Promise.all([
-      fetchComments(client, `${issueUrl}/comments`),
+    const [pullRaw, reviewsRaw] = await Promise.all([
       client.request<GitHubPullResponse>(pullsUrl),
       client.paginateAll<GitHubReviewResponse>(`${pullsUrl}/reviews`),
     ]);
@@ -112,9 +111,7 @@ async function hydrateFromIssueUrl(
       number,
       issue,
       pullRequest: { baseBranch: pullRaw.base.ref, headBranch: pullRaw.head.ref },
-      comments,
       reviews: reviewsRaw.map(toReview),
-      truncated,
     };
   }
 
@@ -129,11 +126,10 @@ async function hydrateFromPrUrl(
   const { owner, repo, number } = parseRepoInfo(pullUrl);
   const issueUrl = pullUrl.replace(/\/pulls\/(\d+)$/, "/issues/$1");
 
-  const [issueRaw, pullRaw, reviewsRaw, { comments, truncated }] = await Promise.all([
+  const [issueRaw, pullRaw, reviewsRaw] = await Promise.all([
     client.request<GitHubIssueResponse>(issueUrl),
     client.request<GitHubPullResponse>(pullUrl),
     client.paginateAll<GitHubReviewResponse>(`${pullUrl}/reviews`),
-    fetchComments(client, `${issueUrl}/comments`),
   ]);
 
   return {
@@ -143,9 +139,7 @@ async function hydrateFromPrUrl(
     number,
     issue: toIssueDetails(issueRaw),
     pullRequest: { baseBranch: pullRaw.base.ref, headBranch: pullRaw.head.ref },
-    comments,
     reviews: reviewsRaw.map(toReview),
-    truncated,
   };
 }
 

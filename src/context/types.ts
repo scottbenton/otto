@@ -44,9 +44,7 @@ export type PullRequestContext = {
   number: number;
   issue: IssueDetails;
   pullRequest: PullRequestDetails;
-  comments: ThreadComment[];
   reviews: PullRequestReview[];
-  truncated: boolean;
 };
 
 export type HydratedContext = IssueContext | PullRequestContext;

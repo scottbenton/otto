@@ -120,6 +120,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
   it("maps thread comments correctly", async () => {
     const client = makeClient({ comments: makeCommentResponse(2) });
     const ctx = await hydrateContext(client, makeIssueComment());
+    if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.comments).toHaveLength(2);
     expect(ctx.comments[0]).toMatchObject({ id: 1000, author: "bob", body: "comment 0" });
   });
@@ -141,6 +142,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
   it("sets truncated: false when comments <= 200", async () => {
     const client = makeClient({ comments: makeCommentResponse(200) });
     const ctx = await hydrateContext(client, makeIssueComment());
+    if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.truncated).toBe(false);
     expect(ctx.comments).toHaveLength(200);
   });
@@ -148,6 +150,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
   it("truncates to 200 and sets truncated: true when comments > 200", async () => {
     const client = makeClient({ comments: makeCommentResponse(201) });
     const ctx = await hydrateContext(client, makeIssueComment());
+    if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.truncated).toBe(true);
     expect(ctx.comments).toHaveLength(200);
   });
@@ -156,6 +159,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
     const nullUserComment = [{ id: 1001, user: null, body: "anon", created_at: "2024-01-01T00:00:00Z" }];
     const client = makeClient({ comments: nullUserComment });
     const ctx = await hydrateContext(client, makeIssueComment());
+    if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.comments[0]?.author).toBeNull();
   });
 
@@ -196,22 +200,25 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
     expect(ctx.reviews[0]).toMatchObject({ id: 2000, author: "carol", state: "APPROVED" });
   });
 
+  it("does not fetch thread comments", async () => {
+    const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
+    await hydrateContext(client, makeIssueComment(1));
+    const paginateCalls = (client.paginateAll as ReturnType<typeof vi.fn>).mock.calls as [string][];
+    expect(paginateCalls.every(([url]) => !url.endsWith("/comments"))).toBe(true);
+  });
+
   it("fetches pulls URL derived from issue_url", async () => {
     const comment = makeIssueComment(1);
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
     await hydrateContext(client, comment);
-    expect(client.request).toHaveBeenCalledWith(
-      `${BASE}/repos/owner/repo/pulls/1`,
-    );
+    expect(client.request).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1`);
   });
 
   it("fetches reviews from pulls/{number}/reviews", async () => {
     const comment = makeIssueComment(1);
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
     await hydrateContext(client, comment);
-    expect(client.paginateAll).toHaveBeenCalledWith(
-      `${BASE}/repos/owner/repo/pulls/1/reviews`,
-    );
+    expect(client.paginateAll).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1/reviews`);
   });
 
   it("handles null review body and author", async () => {
@@ -255,20 +262,19 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
     expect(client.request).toHaveBeenCalledWith(comment.pull_request_url);
   });
 
-  it("fetches comments from /issues/{number}/comments", async () => {
+  it("does not fetch thread comments", async () => {
     const comment = makePrReviewComment(2);
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.paginateAll).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/issues/2/comments`);
+    const paginateCalls = (client.paginateAll as ReturnType<typeof vi.fn>).mock.calls as [string][];
+    expect(paginateCalls.every(([url]) => !url.endsWith("/comments"))).toBe(true);
   });
 
   it("fetches reviews from pull_request_url/reviews", async () => {
     const comment = makePrReviewComment(2);
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.paginateAll).toHaveBeenCalledWith(
-      `${BASE}/repos/owner/repo/pulls/2/reviews`,
-    );
+    expect(client.paginateAll).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/reviews`);
   });
 
   it("includes pullRequest branch refs", async () => {
@@ -277,12 +283,5 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(ctx.pullRequest.baseBranch).toBe("develop");
     expect(ctx.pullRequest.headBranch).toBe("hotfix");
-  });
-
-  it("truncates to 200 comments when > 200", async () => {
-    const client = makeClient({ comments: makeCommentResponse(205) });
-    const ctx = await hydrateContext(client, makePrReviewComment(2));
-    expect(ctx.truncated).toBe(true);
-    expect(ctx.comments).toHaveLength(200);
   });
 });
