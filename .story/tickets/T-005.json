@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-001"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Build the GitHub API client used by all polling and hydration code. Use the Octokit REST client or raw fetch with PAT auth (Authorization: Bearer). Implement a paginate() helper that follows link headers until exhausted. Define the error taxonomy: RateLimitError (429, x-ratelimit-remaining=0), SecondaryRateLimitError (403 with retry-after), NetworkError, NotFoundError, AuthError. This taxonomy is used by T-036 for retry/backoff logic.",
   "id": "T-005",
   "order": 10,
   "phase": "p1",
-  "status": "open",
+  "status": "complete",
   "title": "GitHub API client (PAT auth, pagination, rate limit + error taxonomy)",
   "type": "task"
 }
