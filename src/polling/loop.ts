@@ -8,6 +8,7 @@ export type PollingLoopOptions = {
   state: StateStore;
   repos: string[];
   intervalMs: number;
+  authenticatedUser: string;
   onNewComments: (repo: string, comments: RawComment[]) => void;
 };
 
@@ -23,6 +24,7 @@ export class PollingLoop {
   readonly #state: StateStore;
   readonly #repos: string[];
   readonly #intervalMs: number;
+  readonly #authenticatedUser: string;
   readonly #onNewComments: (repo: string, comments: RawComment[]) => void;
 
   #abortController: AbortController | null = null;
@@ -33,6 +35,7 @@ export class PollingLoop {
     this.#state = options.state;
     this.#repos = options.repos;
     this.#intervalMs = options.intervalMs;
+    this.#authenticatedUser = options.authenticatedUser;
     this.#onNewComments = options.onNewComments;
   }
 
@@ -51,7 +54,7 @@ export class PollingLoop {
 
   async #run(signal: AbortSignal): Promise<void> {
     while (!signal.aborted) {
-      const results = await runPollingTick(this.#client, this.#state, this.#repos);
+      const results = await runPollingTick(this.#client, this.#state, this.#repos, this.#authenticatedUser);
       for (const [repo, comments] of results) {
         if (comments.length > 0) {
           this.#onNewComments(repo, comments);
