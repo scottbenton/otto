@@ -50,12 +50,14 @@ function bodyHasClaimFor(body: string, sourceKey: string): boolean {
   return new RegExp(`\\bsource=${escapeRegex(sourceKey)}\\b`).test(body);
 }
 
+const COMMENT_FOOTER = "\n\n---\n[🤖 Otto](https://github.com/scottbenton/otto)";
+
 function buildStatusBody(runId: string, machineId: string, sourceKey: string): string {
-  return `<!-- otto:v1 status run=${runId} machine=${machineId} source=${sourceKey} -->\n**[Otto]** Status: running`;
+  return `<!-- otto:v1 status run=${runId} machine=${machineId} source=${sourceKey} -->\n**[Otto]** Status: running${COMMENT_FOOTER}`;
 }
 
 function buildAbortBody(runId: string, machineId: string, sourceKey: string): string {
-  return `<!-- otto:v1 status run=${runId} machine=${machineId} source=${sourceKey} -->\n**[Otto]** Status: aborted (duplicate claim)`;
+  return `<!-- otto:v1 status run=${runId} machine=${machineId} source=${sourceKey} -->\n**[Otto]** Status: aborted (duplicate claim)${COMMENT_FOOTER}`;
 }
 
 type StatusCommentEntry = { id: number; created_at: string };

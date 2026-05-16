@@ -183,6 +183,27 @@ describe("claimOrAbort()", () => {
     expect(opts.body.body).toContain(`source=issue_comment:5`);
     expect(opts.body.body).toContain(`machine=${MACHINE_ID}`);
     expect(opts.body.body).toContain("Status: running");
+    expect(opts.body.body).toContain("https://github.com/scottbenton/otto");
+  });
+
+  it("abort comment body contains the footer link", async () => {
+    const trigger = makeIssueComment(1);
+    const client = {
+      paginateAll: vi.fn()
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          makeStatusComment("other-run", "issue_comment:1", 43, "2024-01-01T12:00:00Z"),
+          makeStatusComment("our-run", "issue_comment:1", 42, "2024-01-01T12:00:01Z"),
+        ]),
+      request: vi.fn().mockResolvedValue({ id: 42, created_at: "2024-01-01T12:00:01Z" }),
+    } as unknown as GitHubClient;
+
+    await claimOrAbort(client, trigger, MACHINE_ID);
+
+    const calls = (client.request as ReturnType<typeof vi.fn>).mock.calls as [string, { body: { body: string } }][];
+    const abortBody = calls[1]!;
+    expect(abortBody[1].body.body).toContain("aborted (duplicate claim)");
+    expect(abortBody[1].body.body).toContain("https://github.com/scottbenton/otto");
   });
 
   it("returns { claimed: true } when no duplicate found after posting", async () => {
