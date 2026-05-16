@@ -8,6 +8,7 @@ function makeMatch(id: number, repo = "owner/repo"): TriggerMatch {
   return {
     comment: {
       id,
+      url: `https://api.github.com/repos/owner/repo/issues/comments/${String(id)}`,
       body: "hey otto fix this",
       user: { login: "alice" },
       created_at: "2024-01-01T00:00:00Z",
