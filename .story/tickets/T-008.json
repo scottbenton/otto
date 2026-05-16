@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-006"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Apply two sequential filters to every comment returned by the polling loop before any other processing. First: discard comments where comment.user.login !== authenticatedUser (never inspect the body of foreign comments). Second: discard comments where new Date(comment.created_at) < lastPolled (ignore edits — GitHub since filters on updated_at, not created_at). Comments passing both filters proceed to trigger detection.",
   "id": "T-008",
   "order": 40,
   "phase": "p1",
-  "status": "open",
+  "status": "complete",
   "title": "Comment filtering (created_at gate + authenticated-user gate)",
   "type": "task"
 }
