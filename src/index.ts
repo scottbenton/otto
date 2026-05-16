@@ -15,3 +15,10 @@ export {
   SecondaryRateLimitError,
   NetworkError,
 } from "./github/index.js";
+export {
+  StateStore,
+  acquireLock,
+  LockError,
+  StateFileSchema,
+  type StateFile,
+} from "./state/index.js";

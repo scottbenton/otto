@@ -1,13 +1,22 @@
 #!/usr/bin/env node
-import { Daemon } from "./daemon.js";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 import { loadConfig } from "./config/index.js";
+import { Daemon } from "./daemon.js";
+import { acquireLock } from "./state/index.js";
+import { StateStore } from "./state/store.js";
+
+const DEFAULT_STATE_DIR = join(homedir(), ".otto");
 
 type ParsedArgs = {
   configPath: string | undefined;
+  stateDir: string;
 };
 
 function parseArgs(argv: string[]): ParsedArgs {
   let configPath: string | undefined;
+  let stateDir = DEFAULT_STATE_DIR;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -19,6 +28,14 @@ function parseArgs(argv: string[]): ParsedArgs {
       }
       configPath = next;
       i++;
+    } else if (arg === "--state-dir") {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        console.error("Error: --state-dir requires a path argument");
+        process.exit(1);
+      }
+      stateDir = next;
+      i++;
     } else if (arg === "--help" || arg === "-h") {
       console.log(
         [
@@ -27,9 +44,10 @@ function parseArgs(argv: string[]): ParsedArgs {
           "Usage: otto [options]",
           "",
           "Options:",
-          "  --config <path>  Path to config file (default: ./otto.yaml or ~/.otto/config.yaml)",
-          "  --version        Print version and exit",
-          "  --help           Show this message",
+          "  --config <path>     Path to config file (default: ./otto.yaml or ~/.otto/config.yaml)",
+          "  --state-dir <path>  Path to state directory (default: ~/.otto)",
+          "  --version           Print version and exit",
+          "  --help              Show this message",
         ].join("\n"),
       );
       process.exit(0);
@@ -39,17 +57,21 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { configPath };
+  return { configPath, stateDir };
 }
 
 async function main(): Promise<void> {
-  const { configPath } = parseArgs(process.argv.slice(2));
+  const { configPath, stateDir } = parseArgs(process.argv.slice(2));
 
   const config = await loadConfig(configPath);
+  const state = await StateStore.load(stateDir);
+  const releaseLock = await acquireLock(stateDir);
 
   const repoCount = String(config.github.repos.length);
   const interval = String(config.otto.pollIntervalSeconds);
-  console.log(`Otto starting — polling ${repoCount} repo(s) every ${interval}s`);
+  console.log(
+    `Otto starting — machine ${state.machineId}, polling ${repoCount} repo(s) every ${interval}s`,
+  );
 
   const daemon = new Daemon();
 
@@ -60,7 +82,11 @@ async function main(): Promise<void> {
   process.once("SIGTERM", shutdown);
   process.once("SIGINT", shutdown);
 
-  await daemon.start();
+  try {
+    await daemon.start();
+  } finally {
+    await releaseLock();
+  }
 
   console.log("Otto stopped.");
 }
