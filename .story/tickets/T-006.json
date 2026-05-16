@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-005"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "On daemon startup, call GET /user with the configured PAT and store the authenticated user's login in memory. This login is the sole allowed trigger author — all other comment authors are discarded before any further processing. Fail fast with a clear error if the token is invalid or has insufficient scopes.",
   "id": "T-006",
   "order": 20,
   "phase": "p1",
-  "status": "open",
+  "status": "complete",
   "title": "Authenticated user resolution on startup (GET /user)",
   "type": "task"
 }

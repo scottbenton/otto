@@ -1,4 +1,5 @@
 export { GitHubClient } from "./client.js";
+export { resolveAuthenticatedUser } from "./auth.js";
 export {
   GitHubError,
   AuthError,
