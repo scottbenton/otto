@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { StateStore } from "./store.js";
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let stateDir: string;
 
@@ -38,10 +37,11 @@ describe("StateStore.load()", () => {
     expect(second.machineId).toBe(first.machineId);
   });
 
-  it("initialises lastPolled and seenCommentIds as empty records", async () => {
+  it("initialises optional records as empty records", async () => {
     const store = await StateStore.load(stateDir);
     expect(store.getLastPolled("owner/repo")).toBeUndefined();
     expect(store.getSeenCommentIds("owner/repo")).toEqual([]);
+    expect(store.getRepoDefaultBranch("owner/repo")).toBeUndefined();
   });
 });
 
@@ -71,10 +71,12 @@ describe("StateStore updates", () => {
     const store = await StateStore.load(stateDir);
     await store.setLastPolled("owner/repo", "2024-06-01T00:00:00Z");
     await store.addSeenCommentIds("owner/repo", [42]);
+    await store.setRepoDefaultBranch("owner/repo", "main");
 
     const reloaded = await StateStore.load(stateDir);
     expect(reloaded.getLastPolled("owner/repo")).toBe("2024-06-01T00:00:00Z");
     expect(reloaded.getSeenCommentIds("owner/repo")).toEqual([42]);
+    expect(reloaded.getRepoDefaultBranch("owner/repo")).toBe("main");
   });
 });
 
@@ -83,8 +85,6 @@ describe("StateStore atomic write", () => {
     const store = await StateStore.load(stateDir);
     await store.setLastPolled("owner/repo", "2024-01-01T00:00:00Z");
 
-    await expect(
-      readFile(join(stateDir, "state.json.tmp"), "utf8"),
-    ).rejects.toThrow();
+    await expect(readFile(join(stateDir, "state.json.tmp"), "utf8")).rejects.toThrow();
   });
 });
