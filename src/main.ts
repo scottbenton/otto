@@ -6,7 +6,9 @@ import { pathToFileURL } from "node:url";
 import { loadConfig } from "./config/index.js";
 import { createDaemon } from "./daemon.js";
 import { GitHubClient, resolveAuthenticatedUser } from "./github/index.js";
+import { createLogger } from "./logger.js";
 import { PollingLoop } from "./polling/index.js";
+import { detectTrigger } from "./polling/trigger.js";
 import { acquireLock } from "./state/index.js";
 import { StateStore } from "./state/store.js";
 import { registerShutdown } from "./shutdown.js";
@@ -73,16 +75,16 @@ async function main(): Promise<void> {
   if (args === null) return;
 
   const { configPath, stateDir } = args;
+  const logger = createLogger();
 
   const config = await loadConfig(configPath);
   const state = await StateStore.load(stateDir);
+  const daemonLogger = logger.child({ machineId: state.machineId });
   const releaseLock = await acquireLock(stateDir);
 
   const token = process.env[config.github.tokenEnvVar];
   if (token === undefined || token === "") {
-    process.stderr.write(
-      `Error: environment variable ${config.github.tokenEnvVar} is not set.\n`,
-    );
+    daemonLogger.error({ tokenEnvVar: config.github.tokenEnvVar }, "github token env var missing");
     process.exitCode = 1;
     await releaseLock();
     return;
@@ -91,10 +93,13 @@ async function main(): Promise<void> {
   const github = new GitHubClient(token);
   const authenticatedLogin = await resolveAuthenticatedUser(github);
 
-  const repoCount = String(config.github.repos.length);
-  const interval = String(config.otto.pollIntervalSeconds);
-  process.stdout.write(
-    `Otto starting — authenticated as ${authenticatedLogin}, machine ${state.machineId}, polling ${repoCount} repo(s) every ${interval}s\n`,
+  daemonLogger.info(
+    {
+      authenticatedUser: authenticatedLogin,
+      repoCount: config.github.repos.length,
+      pollIntervalSeconds: config.otto.pollIntervalSeconds,
+    },
+    "otto starting",
   );
 
   const pollingLoop = new PollingLoop({
@@ -103,14 +108,27 @@ async function main(): Promise<void> {
     repos: config.github.repos,
     intervalMs: config.otto.pollIntervalSeconds * 1000,
     authenticatedUser: authenticatedLogin,
-    onNewComments: (_repo, _comments) => { /* comment dispatch — future ticket */ },
+    logger: daemonLogger,
+    onNewComments: (repo, comments) => {
+      for (const comment of comments) {
+        const match = detectTrigger(comment, repo, config.otto.trigger);
+        if (match === null) continue;
+        daemonLogger.info(
+          { repo, commentId: comment.id, taskDescription: match.taskDescription },
+          "trigger detected",
+        );
+      }
+    },
   });
 
   const daemon = createDaemon({
-    start: async () => { pollingLoop.start(); },
-    stop: async () => { /* cleanup — future ticket */ },
+    start: () => {
+      pollingLoop.start();
+      return Promise.resolve();
+    },
+    stop: () => Promise.resolve(),
     beginShutdown: () => { pollingLoop.beginShutdown(); },
-    waitForIdle: (opts) => pollingLoop.waitForIdle(),
+    waitForIdle: () => pollingLoop.waitForIdle(),
   });
 
   const shutdown = registerShutdown({ process });
@@ -119,7 +137,7 @@ async function main(): Promise<void> {
     await daemon.start();
     await shutdown.signal;
 
-    process.stdout.write("\nShutting down gracefully…\n");
+    daemonLogger.info({}, "shutdown signal received");
 
     const timeoutController = new AbortController();
     const timeoutHandle = setTimeout(() => {
@@ -131,7 +149,7 @@ async function main(): Promise<void> {
         .stop({ signal: timeoutController.signal })
         .then(() => { clearTimeout(timeoutHandle); }),
       shutdown.escalation.then(() => {
-        process.stderr.write("Forced exit on second signal.\n");
+        daemonLogger.warn({}, "forced exit on second signal");
         process.exit(1);
       }),
     ]);
@@ -140,14 +158,15 @@ async function main(): Promise<void> {
     await releaseLock();
   }
 
-  process.stdout.write("Otto stopped.\n");
+  daemonLogger.info({}, "otto stopped");
 }
 
 const entryPoint = process.argv[1];
 if (entryPoint !== undefined && import.meta.url === pathToFileURL(entryPoint).href) {
   main().catch((err: unknown) => {
-    process.stderr.write(
-      `Fatal: ${err instanceof Error ? err.message : String(err)}\n`,
+    createLogger().error(
+      { error: err instanceof Error ? err.message : String(err) },
+      "fatal error",
     );
     process.exitCode = 1;
   });

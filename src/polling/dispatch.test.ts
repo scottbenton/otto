@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { StateStore } from "../state/store.js";
-import type { RawComment } from "./types.js";
 import type { TriggerMatch } from "./trigger.js";
 import { filterUnseenTriggers } from "./dispatch.js";
 
@@ -15,7 +14,7 @@ function makeMatch(id: number, repo = "owner/repo"): TriggerMatch {
       updated_at: "2024-01-01T00:00:00Z",
       html_url: `https://github.com/owner/repo/issues/1#issuecomment-${String(id)}`,
       issue_url: "https://api.github.com/repos/owner/repo/issues/1",
-    } as RawComment,
+    },
     repo,
     taskDescription: "hey otto fix this",
   };
@@ -25,6 +24,10 @@ function makeState(seenIds: number[] = []): StateStore {
   return {
     getSeenCommentIds: vi.fn().mockReturnValue(seenIds),
   } as unknown as StateStore;
+}
+
+function getSeenCommentIdsMock(state: StateStore): ReturnType<typeof vi.fn> {
+  return Reflect.get(state, "getSeenCommentIds") as ReturnType<typeof vi.fn>;
 }
 
 describe("filterUnseenTriggers()", () => {
@@ -62,6 +65,6 @@ describe("filterUnseenTriggers()", () => {
 
     filterUnseenTriggers(matches, state, "org/repo-a");
 
-    expect(state.getSeenCommentIds).toHaveBeenCalledWith("org/repo-a");
+    expect(getSeenCommentIdsMock(state)).toHaveBeenCalledWith("org/repo-a");
   });
 });

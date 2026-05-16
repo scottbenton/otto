@@ -1,4 +1,5 @@
 import type { GitHubClient } from "../github/client.js";
+import { noopLogger, type OttoLogger } from "../logger.js";
 import type { StateStore } from "../state/store.js";
 import { runPollingTick } from "./poller.js";
 import type { RawComment } from "./types.js";
@@ -10,9 +11,12 @@ export type PollingLoopOptions = {
   intervalMs: number;
   authenticatedUser: string;
   onNewComments: (repo: string, comments: RawComment[]) => void;
+  logger?: OttoLogger;
 };
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
@@ -26,6 +30,7 @@ export class PollingLoop {
   readonly #intervalMs: number;
   readonly #authenticatedUser: string;
   readonly #onNewComments: (repo: string, comments: RawComment[]) => void;
+  readonly #logger: OttoLogger;
 
   #abortController: AbortController | null = null;
   #loopDone: Promise<void> | null = null;
@@ -37,14 +42,20 @@ export class PollingLoop {
     this.#intervalMs = options.intervalMs;
     this.#authenticatedUser = options.authenticatedUser;
     this.#onNewComments = options.onNewComments;
+    this.#logger = options.logger ?? noopLogger;
   }
 
   start(): void {
     this.#abortController = new AbortController();
+    this.#logger.info(
+      { repoCount: this.#repos.length, intervalMs: this.#intervalMs },
+      "polling loop started",
+    );
     this.#loopDone = this.#run(this.#abortController.signal);
   }
 
   beginShutdown(): void {
+    this.#logger.info({}, "polling loop shutdown requested");
     this.#abortController?.abort();
   }
 
@@ -54,14 +65,24 @@ export class PollingLoop {
 
   async #run(signal: AbortSignal): Promise<void> {
     while (!signal.aborted) {
-      const results = await runPollingTick(this.#client, this.#state, this.#repos, this.#authenticatedUser);
+      const results = await runPollingTick(
+        this.#client,
+        this.#state,
+        this.#repos,
+        this.#authenticatedUser,
+        this.#logger,
+      );
       for (const [repo, comments] of results) {
         if (comments.length > 0) {
+          this.#logger.info(
+            { repo, commentIds: comments.map((comment) => comment.id) },
+            "new comments detected",
+          );
           this.#onNewComments(repo, comments);
         }
       }
-      if (signal.aborted) break;
       await sleep(this.#intervalMs, signal);
     }
+    this.#logger.info({}, "polling loop stopped");
   }
 }

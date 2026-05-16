@@ -23,6 +23,13 @@ export {
   NetworkError,
 } from "./github/index.js";
 export {
+  createLogger,
+  noopLogger,
+  type CreateLoggerOptions,
+  type LogFields,
+  type OttoLogger,
+} from "./logger.js";
+export {
   StateStore,
   acquireLock,
   LockError,

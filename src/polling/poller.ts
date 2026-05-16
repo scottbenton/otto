@@ -1,8 +1,14 @@
 import type { GitHubClient } from "../github/client.js";
+import { noopLogger, type OttoLogger } from "../logger.js";
 import type { StateStore } from "../state/store.js";
 import type { RawComment } from "./types.js";
 
 const OVERLAP_SECONDS = 1;
+
+type FilterStats = {
+  unauthenticatedUser: number;
+  createdBeforeLastPoll: number;
+};
 
 function subtractOneSecond(isoString: string): string {
   const d = new Date(isoString);
@@ -10,16 +16,42 @@ function subtractOneSecond(isoString: string): string {
   return d.toISOString();
 }
 
+function emptyFilterStats(): FilterStats {
+  return {
+    unauthenticatedUser: 0,
+    createdBeforeLastPoll: 0,
+  };
+}
+
 export function filterComments(
   comments: RawComment[],
   authenticatedUser: string,
   lastPolled: string | undefined,
 ): RawComment[] {
-  return comments.filter((comment) => {
-    if (comment.user === null || comment.user.login !== authenticatedUser) return false;
-    if (lastPolled !== undefined && new Date(comment.created_at) < new Date(lastPolled)) return false;
-    return true;
-  });
+  return filterCommentsWithStats(comments, authenticatedUser, lastPolled, emptyFilterStats());
+}
+
+function filterCommentsWithStats(
+  comments: RawComment[],
+  authenticatedUser: string,
+  lastPolled: string | undefined,
+  stats: FilterStats,
+): RawComment[] {
+  const filtered: RawComment[] = [];
+
+  for (const comment of comments) {
+    if (comment.user?.login !== authenticatedUser) {
+      stats.unauthenticatedUser++;
+      continue;
+    }
+    if (lastPolled !== undefined && new Date(comment.created_at) < new Date(lastPolled)) {
+      stats.createdBeforeLastPoll++;
+      continue;
+    }
+    filtered.push(comment);
+  }
+
+  return filtered;
 }
 
 export async function pollRepo(
@@ -27,12 +59,16 @@ export async function pollRepo(
   state: StateStore,
   repo: string,
   authenticatedUser: string,
+  logger: OttoLogger = noopLogger,
 ): Promise<RawComment[]> {
+  const repoLogger = logger.child({ repo });
   const rawSince = state.getLastPolled(repo);
   const params: Record<string, string> = { per_page: "100" };
   if (rawSince !== undefined) {
     params.since = subtractOneSecond(rawSince);
   }
+
+  repoLogger.debug({ since: params.since }, "poll tick started");
 
   const pollStarted = new Date().toISOString();
   const [owner, repoName] = repo.split("/") as [string, string];
@@ -58,7 +94,34 @@ export async function pollRepo(
     await state.addSeenCommentIds(repo, newIds);
   }
 
-  return filterComments(newComments, authenticatedUser, rawSince);
+  const filterStats = emptyFilterStats();
+  const filteredComments = filterCommentsWithStats(
+    newComments,
+    authenticatedUser,
+    rawSince,
+    filterStats,
+  );
+  const filteredCount = filterStats.unauthenticatedUser + filterStats.createdBeforeLastPoll;
+  if (filteredCount > 0) {
+    repoLogger.debug(
+      {
+        filteredCount,
+        filteredByUnauthenticatedUser: filterStats.unauthenticatedUser,
+        filteredByCreatedBeforeLastPoll: filterStats.createdBeforeLastPoll,
+      },
+      "comments filtered",
+    );
+  }
+  repoLogger.debug(
+    {
+      issueCommentCount: issueComments.length,
+      prCommentCount: prComments.length,
+      newCommentCount: newComments.length,
+      filteredCommentCount: filteredComments.length,
+    },
+    "poll tick completed",
+  );
+  return filteredComments;
 }
 
 export async function runPollingTick(
@@ -66,9 +129,13 @@ export async function runPollingTick(
   state: StateStore,
   repos: string[],
   authenticatedUser: string,
+  logger: OttoLogger = noopLogger,
 ): Promise<Map<string, RawComment[]>> {
   const settled = await Promise.allSettled(
-    repos.map(async (repo) => ({ repo, comments: await pollRepo(client, state, repo, authenticatedUser) })),
+    repos.map(async (repo) => ({
+      repo,
+      comments: await pollRepo(client, state, repo, authenticatedUser, logger),
+    })),
   );
 
   const result = new Map<string, RawComment[]>();
@@ -77,7 +144,7 @@ export async function runPollingTick(
       result.set(outcome.value.repo, outcome.value.comments);
     } else {
       const msg = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
-      process.stderr.write(`[otto] poll error: ${msg}\n`);
+      logger.error({ error: msg }, "repo poll failed");
     }
   }
   return result;

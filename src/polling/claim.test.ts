@@ -40,6 +40,10 @@ function makeClient(
   } as unknown as GitHubClient;
 }
 
+function paginateAllMock(client: GitHubClient): ReturnType<typeof vi.fn> {
+  return Reflect.get(client, "paginateAll") as ReturnType<typeof vi.fn>;
+}
+
 function statusBody(sourceKey: string): string {
   return `<!-- otto:v1 status run=run-uuid machine=machine-uuid source=${sourceKey} -->\n\nOtto is working on this.`;
 }
@@ -99,7 +103,7 @@ describe("isAlreadyClaimed()", () => {
     const trigger = makeIssueComment(1);
     const client = makeClient([]);
     await isAlreadyClaimed(client, trigger);
-    expect(client.paginateAll).toHaveBeenCalledWith(
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(
       "https://api.github.com/repos/owner/repo/issues/1/comments",
     );
   });
@@ -108,7 +112,7 @@ describe("isAlreadyClaimed()", () => {
     const trigger = makePrComment(1);
     const client = makeClient([]);
     await isAlreadyClaimed(client, trigger);
-    expect(client.paginateAll).toHaveBeenCalledWith(
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(
       "https://api.github.com/repos/owner/repo/pulls/2/comments",
     );
   });
