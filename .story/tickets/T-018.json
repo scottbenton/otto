@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-009"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Implement rule-based classification of the task description into one of five types. answer: question words (why, what, how, explain) with no action verbs. modify_existing_pr: action verbs (fix, change, update, add) on a PR source. implement_issue: action verbs on an issue source. clarify: insufficient context to determine intent. ignore: reserved keywords that are not real invocations. Classification gates capability grants — a read-only answer task must not receive worktree or push permissions.",
   "id": "T-018",
   "order": 40,
   "phase": "p2",
-  "status": "open",
+  "status": "complete",
   "title": "Rule-based task classifier (answer / modify_existing_pr / implement_issue / clarify / ignore)",
   "type": "task"
 }
