@@ -6,6 +6,7 @@ import { detectTrigger } from "./trigger.js";
 function makeComment(body: string): RawComment {
   return {
     id: 1,
+    url: "https://api.github.com/repos/owner/repo/issues/comments/1",
     body,
     user: { login: "alice" },
     created_at: "2024-01-01T00:00:00Z",

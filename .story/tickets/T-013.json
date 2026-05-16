@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-004"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "On daemon startup, before entering the polling loop, scan each watched repo for status comments authored by the authenticated user that contain machine=<my-machine-uuid> and Status: running. For each found, patch that comment to Status: interrupted with a message and retry instructions. Status comments from a different machine UUID are left untouched — that machine may still be running.",
   "id": "T-013",
   "order": 90,
   "phase": "p1",
-  "status": "open",
+  "status": "complete",
   "title": "Startup restart recovery (stale running comments by machine UUID)",
   "type": "task"
 }

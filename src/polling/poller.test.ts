@@ -13,6 +13,7 @@ function makeComment(
   const { createdAt = "2024-01-01T00:00:00Z", login = "alice" } = options;
   return {
     id,
+    url: `https://api.github.com/repos/owner/repo/issues/comments/${String(id)}`,
     body: `comment ${String(id)}`,
     user: login === null ? null : { login },
     created_at: createdAt,

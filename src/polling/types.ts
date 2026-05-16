@@ -1,5 +1,6 @@
 export type IssueComment = {
   id: number;
+  url: string;
   body: string;
   user: { login: string } | null;
   created_at: string;
@@ -10,6 +11,7 @@ export type IssueComment = {
 
 export type PullRequestReviewComment = {
   id: number;
+  url: string;
   body: string;
   user: { login: string } | null;
   created_at: string;
