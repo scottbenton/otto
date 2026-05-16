@@ -7,6 +7,7 @@ import { claimOrAbort, commentSourceKey, isAlreadyClaimed } from "./claim.js";
 function makeIssueComment(id: number): IssueComment {
   return {
     id,
+    url: `https://api.github.com/repos/owner/repo/issues/comments/${String(id)}`,
     body: "hey otto fix this",
     user: { login: "alice" },
     created_at: "2024-01-01T00:00:00Z",
@@ -19,6 +20,7 @@ function makeIssueComment(id: number): IssueComment {
 function makePrComment(id: number): PullRequestReviewComment {
   return {
     id,
+    url: `https://api.github.com/repos/owner/repo/pulls/comments/${String(id)}`,
     body: "hey otto fix this",
     user: { login: "alice" },
     created_at: "2024-01-01T00:00:00Z",

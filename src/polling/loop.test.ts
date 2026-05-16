@@ -69,6 +69,7 @@ describe("PollingLoop", () => {
   it("calls onNewComments when a tick returns results", async () => {
     const comment: RawComment = {
       id: 1,
+      url: "https://api.github.com/repos/owner/repo/issues/comments/1",
       body: "hello",
       user: { login: "alice" },
       created_at: "2024-01-01T00:00:00Z",
