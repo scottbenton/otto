@@ -4,6 +4,9 @@
   "description": "GitHub-triggered local agent runner.",
   "type": "module",
   "private": true,
+  "bin": {
+    "otto": "./dist/main.js"
+  },
   "engines": {
     "node": ">=20"
   },
