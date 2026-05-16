@@ -1,5 +1,5 @@
 import type { GitHubClient } from "../github/client.js";
-import { buildComment } from "./format.js";
+import { buildStatusComment, interruptedStatus } from "./status.js";
 import type { RawComment } from "./types.js";
 
 const MARKER_RE =
@@ -23,9 +23,6 @@ function isStaleRunningComment(comment: RawComment, machineId: string): boolean 
   if (parsed?.machineId !== machineId) return false;
   return /\bStatus:\s*running\b/.test(comment.body);
 }
-
-const INTERRUPTED_CONTENT =
-  "Status: interrupted — daemon restarted. Remove this comment and re-trigger to retry.";
 
 export async function recoverStaleComments(
   client: GitHubClient,
@@ -53,7 +50,14 @@ export async function recoverStaleComments(
         await client.request(c.url, {
           method: "PATCH",
           body: {
-            body: buildComment(parsed.runId, parsed.machineId, parsed.sourceKey, INTERRUPTED_CONTENT),
+            body: buildStatusComment(
+              {
+                runId: parsed.runId,
+                machineId: parsed.machineId,
+                sourceKey: parsed.sourceKey,
+              },
+              interruptedStatus(),
+            ),
           },
         });
       }),

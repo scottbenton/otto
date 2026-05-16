@@ -1,6 +1,10 @@
 import type { GitHubClient } from "../github/client.js";
 import type { IssueComment, RawComment } from "./types.js";
-import { buildComment } from "./format.js";
+import {
+  abortedDuplicateClaimStatus,
+  buildStatusComment,
+  updateStatusComment,
+} from "./status.js";
 
 function isIssueComment(comment: RawComment): comment is IssueComment {
   return "issue_url" in comment;
@@ -25,21 +29,6 @@ function createCommentUrl(comment: RawComment): string {
     return `${comment.issue_url}/comments`;
   }
   return `${comment.pull_request_url}/comments/${String(comment.id)}/replies`;
-}
-
-function repoBase(comment: RawComment): string {
-  if (isIssueComment(comment)) {
-    return comment.issue_url.replace(/\/issues\/\d+$/, "");
-  }
-  return comment.pull_request_url.replace(/\/pulls\/\d+$/, "");
-}
-
-function updateCommentUrl(comment: RawComment, statusCommentId: number): string {
-  const base = repoBase(comment);
-  if (isIssueComment(comment)) {
-    return `${base}/issues/comments/${String(statusCommentId)}`;
-  }
-  return `${base}/pulls/comments/${String(statusCommentId)}`;
 }
 
 function escapeRegex(s: string): string {
@@ -90,7 +79,10 @@ export async function claimOrAbort(
 
   const runId = crypto.randomUUID();
   const sourceKey = commentSourceKey(trigger);
-  const statusBody = buildComment(runId, machineId, sourceKey, "Status: running");
+  const statusBody = buildStatusComment(
+    { runId, machineId, sourceKey },
+    { status: "running" },
+  );
 
   const created = await client.request<{ id: number; created_at: string }>(
     createCommentUrl(trigger),
@@ -111,10 +103,13 @@ export async function claimOrAbort(
     return { claimed: true, runId, statusCommentId: created.id };
   }
 
-  await client.request(updateCommentUrl(trigger, created.id), {
-    method: "PATCH",
-    body: { body: buildComment(runId, machineId, sourceKey, "Status: aborted (duplicate claim)") },
-  });
+  await updateStatusComment(
+    client,
+    trigger,
+    created.id,
+    { runId, machineId, sourceKey },
+    abortedDuplicateClaimStatus(),
+  );
 
   return { claimed: false };
 }
