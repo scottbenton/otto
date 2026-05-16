@@ -56,6 +56,10 @@ export class StateStore {
     return this.#data.repoDefaultBranches[repo];
   }
 
+  getWorktree(targetKey: string): StateFile["worktrees"][string] | undefined {
+    return this.#data.worktrees[targetKey];
+  }
+
   async setLastPolled(repo: string, timestamp: string): Promise<void> {
     this.#data = {
       ...this.#data,
@@ -84,6 +88,31 @@ export class StateStore {
         ...this.#data.repoDefaultBranches,
         [repo]: defaultBranch
       }
+    };
+    await this.#save();
+  }
+
+  async setWorktree(
+    targetKey: string,
+    worktree: StateFile["worktrees"][string],
+  ): Promise<void> {
+    this.#data = {
+      ...this.#data,
+      worktrees: {
+        ...this.#data.worktrees,
+        [targetKey]: worktree
+      }
+    };
+    await this.#save();
+  }
+
+  async removeWorktree(targetKey: string): Promise<void> {
+    const worktrees = Object.fromEntries(
+      Object.entries(this.#data.worktrees).filter(([key]) => key !== targetKey)
+    );
+    this.#data = {
+      ...this.#data,
+      worktrees
     };
     await this.#save();
   }

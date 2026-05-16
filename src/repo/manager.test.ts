@@ -13,6 +13,7 @@ type GitCall = {
 
 let rootDir: string;
 let reposDir: string;
+let worktreesDir: string;
 let stateDir: string;
 let store: StateStore;
 let calls: GitCall[];
@@ -28,14 +29,131 @@ function createRunner(outputs: string[] = []): GitRunner {
 beforeEach(async () => {
   rootDir = join(tmpdir(), `otto-repo-manager-${String(Date.now())}`);
   reposDir = join(rootDir, "repos");
+  worktreesDir = join(rootDir, "worktrees");
   stateDir = join(rootDir, "state");
   calls = [];
   await mkdir(reposDir, { recursive: true });
+  await mkdir(worktreesDir, { recursive: true });
   store = await StateStore.load(stateDir);
 });
 
 afterEach(async () => {
   await rm(rootDir, { recursive: true, force: true });
+});
+
+describe("RepoManager.prepareWorktree()", () => {
+  it("creates a deterministic git worktree for a target and records it in state", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    await mkdir(checkoutPath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createRunner()
+    });
+
+    const worktree = await manager.prepareWorktree({
+      slug: "owner/repo",
+      targetKey: "owner/repo#123",
+      branch: "otto/owner-repo-123"
+    });
+
+    const worktreePath = join(worktreesDir, "owner-repo-123");
+    expect(worktree).toEqual({
+      slug: "owner/repo",
+      path: worktreePath,
+      branch: "otto/owner-repo-123",
+      repoPath: checkoutPath
+    });
+    expect(calls).toEqual([
+      { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      {
+        args: ["merge", "--ff-only", "origin/main"],
+        options: { cwd: checkoutPath }
+      },
+      {
+        args: ["worktree", "add", worktreePath, "otto/owner-repo-123"],
+        options: { cwd: checkoutPath }
+      }
+    ]);
+    expect(store.getWorktree("owner/repo#123")).toEqual({
+      repo: "owner/repo",
+      path: worktreePath,
+      branch: "otto/owner-repo-123"
+    });
+  });
+
+  it("reuses an existing worktree directory without running git worktree add", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    const worktreePath = join(worktreesDir, "owner-repo-123");
+    await mkdir(checkoutPath, { recursive: true });
+    await mkdir(worktreePath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createRunner()
+    });
+
+    await manager.prepareWorktree({
+      slug: "owner/repo",
+      targetKey: "owner/repo#123",
+      branch: "otto/owner-repo-123"
+    });
+
+    expect(calls).toEqual([
+      { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      {
+        args: ["merge", "--ff-only", "origin/main"],
+        options: { cwd: checkoutPath }
+      }
+    ]);
+    expect(store.getWorktree("owner/repo#123")?.path).toBe(worktreePath);
+  });
+
+  it("removes worktree state on release without deleting the directory", async () => {
+    const worktreePath = join(worktreesDir, "owner-repo-123");
+    await mkdir(worktreePath, { recursive: true });
+    await store.setWorktree("owner/repo#123", {
+      repo: "owner/repo",
+      path: worktreePath,
+      branch: "otto/owner-repo-123"
+    });
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createRunner()
+    });
+
+    await manager.releaseWorktree("owner/repo#123");
+
+    expect(store.getWorktree("owner/repo#123")).toBeUndefined();
+    await expect(mkdir(worktreePath)).rejects.toThrow();
+  });
+
+  it("rejects a non-directory at the computed worktree path", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    await mkdir(checkoutPath, { recursive: true });
+    await writeFile(join(worktreesDir, "owner-repo-123"), "not a worktree", "utf8");
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createRunner()
+    });
+
+    await expect(
+      manager.prepareWorktree({
+        slug: "owner/repo",
+        targetKey: "owner/repo#123",
+        branch: "otto/owner-repo-123"
+      })
+    ).rejects.toThrow(RepoManagerError);
+  });
 });
 
 describe("RepoManager.prepareRepository()", () => {

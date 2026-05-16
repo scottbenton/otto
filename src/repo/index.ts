@@ -5,5 +5,7 @@ export {
   type GitRunnerOptions,
   type GitRunnerResult,
   type PreparedRepository,
-  type PrepareRepositoryInput
+  type PreparedWorktree,
+  type PrepareRepositoryInput,
+  type PrepareWorktreeInput
 } from "./manager.js";

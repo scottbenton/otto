@@ -42,6 +42,7 @@ describe("StateStore.load()", () => {
     expect(store.getLastPolled("owner/repo")).toBeUndefined();
     expect(store.getSeenCommentIds("owner/repo")).toEqual([]);
     expect(store.getRepoDefaultBranch("owner/repo")).toBeUndefined();
+    expect(store.getWorktree("owner/repo#1")).toBeUndefined();
   });
 });
 
@@ -72,11 +73,44 @@ describe("StateStore updates", () => {
     await store.setLastPolled("owner/repo", "2024-06-01T00:00:00Z");
     await store.addSeenCommentIds("owner/repo", [42]);
     await store.setRepoDefaultBranch("owner/repo", "main");
+    await store.setWorktree("owner/repo#1", {
+      repo: "owner/repo",
+      path: "/tmp/worktrees/owner-repo-1",
+      branch: "otto/owner-repo-1"
+    });
 
     const reloaded = await StateStore.load(stateDir);
     expect(reloaded.getLastPolled("owner/repo")).toBe("2024-06-01T00:00:00Z");
     expect(reloaded.getSeenCommentIds("owner/repo")).toEqual([42]);
     expect(reloaded.getRepoDefaultBranch("owner/repo")).toBe("main");
+    expect(reloaded.getWorktree("owner/repo#1")).toEqual({
+      repo: "owner/repo",
+      path: "/tmp/worktrees/owner-repo-1",
+      branch: "otto/owner-repo-1"
+    });
+  });
+
+  it("removes worktree metadata without deleting other targets", async () => {
+    const store = await StateStore.load(stateDir);
+    await store.setWorktree("owner/repo#1", {
+      repo: "owner/repo",
+      path: "/tmp/worktrees/owner-repo-1",
+      branch: "otto/owner-repo-1"
+    });
+    await store.setWorktree("owner/repo#2", {
+      repo: "owner/repo",
+      path: "/tmp/worktrees/owner-repo-2",
+      branch: "otto/owner-repo-2"
+    });
+
+    await store.removeWorktree("owner/repo#1");
+
+    expect(store.getWorktree("owner/repo#1")).toBeUndefined();
+    expect(store.getWorktree("owner/repo#2")).toEqual({
+      repo: "owner/repo",
+      path: "/tmp/worktrees/owner-repo-2",
+      branch: "otto/owner-repo-2"
+    });
   });
 });
 
