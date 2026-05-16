@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-16",
+  "createdDate": "2026-05-16",
+  "description": "Add a durable project rule requiring completed Storybloq work to commit all relevant changes, including ticket/status transitions, and open a GitHub pull request / merge request before handoff.",
+  "id": "T-039",
+  "order": 70,
+  "phase": "p4",
+  "status": "complete",
+  "title": "Document completion workflow for Storybloq work",
+  "type": "chore"
+}
