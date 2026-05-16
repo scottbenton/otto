@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { Daemon } from "./daemon.js";
+import { loadConfig } from "./config/index.js";
 
 type ParsedArgs = {
-  configPath: string;
+  configPath: string | undefined;
 };
 
 function parseArgs(argv: string[]): ParsedArgs {
-  let configPath = "otto.yml";
+  let configPath: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -26,7 +27,7 @@ function parseArgs(argv: string[]): ParsedArgs {
           "Usage: otto [options]",
           "",
           "Options:",
-          "  --config <path>  Path to config file (default: otto.yml)",
+          "  --config <path>  Path to config file (default: ./otto.yaml or ~/.otto/config.yaml)",
           "  --version        Print version and exit",
           "  --help           Show this message",
         ].join("\n"),
@@ -44,7 +45,11 @@ function parseArgs(argv: string[]): ParsedArgs {
 async function main(): Promise<void> {
   const { configPath } = parseArgs(process.argv.slice(2));
 
-  console.log(`Otto starting (config: ${configPath})`);
+  const config = await loadConfig(configPath);
+
+  const repoCount = String(config.github.repos.length);
+  const interval = String(config.otto.pollIntervalSeconds);
+  console.log(`Otto starting — polling ${repoCount} repo(s) every ${interval}s`);
 
   const daemon = new Daemon();
 
@@ -61,6 +66,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  console.error("Fatal:", err);
+  console.error("Fatal:", err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

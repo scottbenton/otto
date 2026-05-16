@@ -1,0 +1,42 @@
+import { z } from "zod";
+
+const repoSlugPattern = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
+
+const RunnerConfigSchema = z.object({
+  type: z.literal("command"),
+  command: z.string().min(1),
+});
+
+export const OttoConfigSchema = z.object({
+  otto: z
+    .object({
+      trigger: z.string().min(1).default("otto"),
+      pollIntervalSeconds: z.number().int().min(30).default(300),
+      debounceSeconds: z.number().int().min(0).default(60),
+      maxConcurrentRuns: z.number().int().min(1).default(3),
+    })
+    .default({
+      trigger: "otto",
+      pollIntervalSeconds: 300,
+      debounceSeconds: 60,
+      maxConcurrentRuns: 3,
+    }),
+  github: z.object({
+    tokenEnv: z.string().min(1).default("GITHUB_TOKEN"),
+    repos: z
+      .array(z.string().regex(repoSlugPattern, "must be owner/repo format"))
+      .min(1, "at least one repo is required"),
+  }),
+  workspace: z.object({
+    reposDir: z.string().min(1),
+    worktreesDir: z.string().min(1),
+  }),
+  agent: z.object({
+    default: z.string().min(1),
+    timeoutSeconds: z.number().int().min(1).default(600),
+    runners: z.record(z.string(), RunnerConfigSchema),
+  }),
+});
+
+export type OttoConfig = z.infer<typeof OttoConfigSchema>;
+export type RunnerConfig = z.infer<typeof RunnerConfigSchema>;
