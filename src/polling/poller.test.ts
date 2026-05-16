@@ -148,6 +148,19 @@ describe("runPollingTick()", () => {
     expect(result.get("good/repo")).toEqual([makeComment(1)]);
   });
 
+  it("logs an error to stderr when a repo poll fails", async () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const client = {
+      paginateAll: vi.fn().mockRejectedValue(new Error("timeout")),
+    } as unknown as GitHubClient;
+    const state = makeState();
+
+    await runPollingTick(client, state, ["bad/repo"]);
+
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("timeout"));
+    stderrSpy.mockRestore();
+  });
+
   it("runs repos in parallel (both paginateAll calls start before either resolves)", async () => {
     const order: string[] = [];
     const client = {

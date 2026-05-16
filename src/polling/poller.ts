@@ -61,6 +61,9 @@ export async function runPollingTick(
   for (const outcome of settled) {
     if (outcome.status === "fulfilled") {
       result.set(outcome.value.repo, outcome.value.comments);
+    } else {
+      const msg = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
+      process.stderr.write(`[otto] poll error: ${msg}\n`);
     }
   }
   return result;
