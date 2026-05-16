@@ -19,10 +19,8 @@ export type DispatchDecision<T> =
     };
 
 export type RunConcurrencyGateOptions = {
-  maxConcurrentRuns?: number;
+  maxConcurrentRuns: number;
 };
-
-const DEFAULT_MAX_CONCURRENT_RUNS = 3;
 
 export function filterUnseenTriggers(
   matches: TriggerMatch[],
@@ -44,8 +42,8 @@ export class RunConcurrencyGate<T> {
 
   #activeRunCount = 0;
 
-  constructor(options: RunConcurrencyGateOptions = {}) {
-    const maxConcurrentRuns = options.maxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS;
+  constructor(options: RunConcurrencyGateOptions) {
+    const { maxConcurrentRuns } = options;
     if (!Number.isInteger(maxConcurrentRuns) || maxConcurrentRuns < 1) {
       throw new RangeError("maxConcurrentRuns must be an integer greater than 0");
     }

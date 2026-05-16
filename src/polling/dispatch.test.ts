@@ -160,7 +160,7 @@ describe("RunConcurrencyGate", () => {
   });
 
   it("ignores completion for a target that is not in flight", () => {
-    const gate = new RunConcurrencyGate<string>();
+    const gate = new RunConcurrencyGate<string>({ maxConcurrentRuns: 3 });
 
     expect(gate.complete("owner/repo#1")).toEqual([]);
     expect(gate.activeRunCount).toBe(0);
