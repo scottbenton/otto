@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-008"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "After filtering, check whether the comment body (trimmed) starts with the configured trigger keyword (case-insensitive). If it matches, extract the remainder of the body as the raw task description. Return a structured TriggerMatch: { comment, repo, taskDescription }. A bare trigger with no other text is a valid match with an empty taskDescription.",
   "id": "T-009",
   "order": 50,
   "phase": "p1",
-  "status": "open",
+  "status": "complete",
   "title": "Trigger keyword detection",
   "type": "task"
 }
