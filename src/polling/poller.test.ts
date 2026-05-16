@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { GitHubClient } from "../github/client.js";
+import type { OttoLogger } from "../logger.js";
 import type { StateStore } from "../state/store.js";
 import type { RawComment } from "./types.js";
 import { filterComments, pollRepo, runPollingTick } from "./poller.js";
@@ -43,6 +44,22 @@ function makeClient(issueComments: RawComment[], prComments: RawComment[]): GitH
   } as unknown as GitHubClient;
 }
 
+function mockMethod<T>(target: T, key: keyof T): ReturnType<typeof vi.fn> {
+  return Reflect.get(target as object, key) as ReturnType<typeof vi.fn>;
+}
+
+function makeLogger(): OttoLogger {
+  const logger = {
+    child: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  } as unknown as OttoLogger;
+  vi.mocked(logger.child).mockReturnValue(logger);
+  return logger;
+}
+
 describe("filterComments()", () => {
   it("keeps comments from the authenticated user", () => {
     const comment = makeComment(1);
@@ -78,6 +95,18 @@ describe("filterComments()", () => {
     const foreign = makeComment(1, { login: "bot", createdAt: "2099-01-01T00:00:00Z" });
     expect(filterComments([foreign], "alice", undefined)).toHaveLength(0);
   });
+
+  it("logs filtered comments at debug level with the reason", () => {
+    const logger = makeLogger();
+    const foreign = makeComment(1, { login: "bot" });
+
+    expect(filterComments([foreign], "alice", undefined, logger, "owner/repo")).toHaveLength(0);
+
+    expect(logger.debug).toHaveBeenCalledWith(
+      { repo: "owner/repo", commentId: 1, reason: "unauthenticated-user" },
+      "comment filtered",
+    );
+  });
 });
 
 describe("pollRepo()", () => {
@@ -87,8 +116,8 @@ describe("pollRepo()", () => {
 
     await pollRepo(client, state, "owner/repo", "alice");
 
-    expect(client.paginateAll).toHaveBeenCalledTimes(2);
-    const calls = (client.paginateAll as ReturnType<typeof vi.fn>).mock.calls as [string, Record<string, string>][];
+    expect(mockMethod(client, "paginateAll")).toHaveBeenCalledTimes(2);
+    const calls = mockMethod(client, "paginateAll").mock.calls as [string, Record<string, string>][];
     expect(calls[0]?.[0]).toBe("/repos/owner/repo/issues/comments");
     expect(calls[1]?.[0]).toBe("/repos/owner/repo/pulls/comments");
   });
@@ -99,7 +128,7 @@ describe("pollRepo()", () => {
 
     await pollRepo(client, state, "owner/repo", "alice");
 
-    const calls = (client.paginateAll as ReturnType<typeof vi.fn>).mock.calls as [string, Record<string, string>][];
+    const calls = mockMethod(client, "paginateAll").mock.calls as [string, Record<string, string>][];
     expect(calls[0]?.[1]?.since).toBe("2024-06-01T12:00:09.000Z");
   });
 
@@ -109,7 +138,7 @@ describe("pollRepo()", () => {
 
     await pollRepo(client, state, "owner/repo", "alice");
 
-    const calls = (client.paginateAll as ReturnType<typeof vi.fn>).mock.calls as [string, Record<string, string>][];
+    const calls = mockMethod(client, "paginateAll").mock.calls as [string, Record<string, string>][];
     expect(calls[0]?.[1]?.since).toBeUndefined();
   });
 
@@ -128,7 +157,7 @@ describe("pollRepo()", () => {
 
     await pollRepo(client, state, "owner/repo", "alice");
 
-    expect(state.addSeenCommentIds).toHaveBeenCalledWith("owner/repo", [10, 20]);
+    expect(mockMethod(state, "addSeenCommentIds")).toHaveBeenCalledWith("owner/repo", [10, 20]);
   });
 
   it("updates lastPolled after a successful poll", async () => {
@@ -137,7 +166,7 @@ describe("pollRepo()", () => {
 
     await pollRepo(client, state, "owner/repo", "alice");
 
-    expect(state.setLastPolled).toHaveBeenCalledWith(
+    expect(mockMethod(state, "setLastPolled")).toHaveBeenCalledWith(
       "owner/repo",
       expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
     );
@@ -149,7 +178,7 @@ describe("pollRepo()", () => {
 
     await pollRepo(client, state, "owner/repo", "alice");
 
-    expect(state.addSeenCommentIds).not.toHaveBeenCalled();
+    expect(mockMethod(state, "addSeenCommentIds")).not.toHaveBeenCalled();
   });
 
   it("returns an empty array when all comments are already seen", async () => {
@@ -182,6 +211,26 @@ describe("pollRepo()", () => {
 
     expect(result.map((c) => c.id)).toEqual([1]);
   });
+
+  it("logs poll tick start and completion at debug level", async () => {
+    const logger = makeLogger();
+    const client = makeClient([makeComment(1)], []);
+    const state = makeState();
+
+    await pollRepo(client, state, "owner/repo", "alice", logger);
+
+    expect(logger.child).toHaveBeenCalledWith({ repo: "owner/repo" });
+    expect(logger.debug).toHaveBeenCalledWith({ since: undefined }, "poll tick started");
+    expect(logger.debug).toHaveBeenCalledWith(
+      {
+        issueCommentCount: 1,
+        prCommentCount: 0,
+        newCommentCount: 1,
+        filteredCommentCount: 1,
+      },
+      "poll tick completed",
+    );
+  });
 });
 
 describe("runPollingTick()", () => {
@@ -211,17 +260,16 @@ describe("runPollingTick()", () => {
     expect(result.get("good/repo")).toEqual([makeComment(1)]);
   });
 
-  it("logs an error to stderr when a repo poll fails", async () => {
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  it("logs an error when a repo poll fails", async () => {
+    const logger = makeLogger();
     const client = {
       paginateAll: vi.fn().mockRejectedValue(new Error("timeout")),
     } as unknown as GitHubClient;
     const state = makeState();
 
-    await runPollingTick(client, state, ["bad/repo"], "alice");
+    await runPollingTick(client, state, ["bad/repo"], "alice", logger);
 
-    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("timeout"));
-    stderrSpy.mockRestore();
+    expect(logger.error).toHaveBeenCalledWith({ error: "timeout" }, "repo poll failed");
   });
 
   it("runs repos in parallel (both paginateAll calls start before either resolves)", async () => {
