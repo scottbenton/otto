@@ -6,22 +6,24 @@ export type TriggerMatch = {
   taskDescription: string;
 };
 
+// Escape special regex characters in the keyword so user-configured values are safe.
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function detectTrigger(
   comment: RawComment,
   repo: string,
   keyword: string,
 ): TriggerMatch | null {
   const body = comment.body.trim();
-  const kw = keyword.toLowerCase();
+  const pattern = new RegExp(`\\b${escapeRegex(keyword)}\\b`, "i");
 
-  if (!body.toLowerCase().startsWith(kw)) return null;
-
-  const after = body.slice(kw.length);
-  if (after.length > 0 && !/^\s/.test(after)) return null;
+  if (!pattern.test(body)) return null;
 
   return {
     comment,
     repo,
-    taskDescription: after.trim(),
+    taskDescription: body,
   };
 }

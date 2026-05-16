@@ -19,7 +19,7 @@ const REPO = "owner/repo";
 const KEYWORD = "otto";
 
 describe("detectTrigger()", () => {
-  it("returns null when body does not start with the keyword", () => {
+  it("returns null when body does not contain the keyword", () => {
     expect(detectTrigger(makeComment("please do something"), REPO, KEYWORD)).toBeNull();
   });
 
@@ -27,41 +27,38 @@ describe("detectTrigger()", () => {
     expect(detectTrigger(makeComment("ottomation is great"), REPO, KEYWORD)).toBeNull();
   });
 
-  it("returns null when keyword appears later in the body", () => {
-    expect(detectTrigger(makeComment("hey otto do this"), REPO, KEYWORD)).toBeNull();
+  it("matches keyword at the start of the body", () => {
+    expect(detectTrigger(makeComment("otto fix the tests"), REPO, KEYWORD)).not.toBeNull();
   });
 
-  it("matches a bare keyword with empty taskDescription", () => {
-    const comment = makeComment("otto");
-    const match = detectTrigger(comment, REPO, KEYWORD);
-    expect(match).not.toBeNull();
-    expect(match?.taskDescription).toBe("");
+  it("matches keyword in the middle of the body", () => {
+    expect(detectTrigger(makeComment("hey otto, can we fix this?"), REPO, KEYWORD)).not.toBeNull();
   });
 
-  it("matches keyword followed by a task description", () => {
-    const comment = makeComment("otto fix the tests");
+  it("matches keyword at the end of the body", () => {
+    expect(detectTrigger(makeComment("tagging otto"), REPO, KEYWORD)).not.toBeNull();
+  });
+
+  it("uses the full trimmed body as taskDescription", () => {
+    const comment = makeComment("  hey otto, can we fix the tests?  ");
     const match = detectTrigger(comment, REPO, KEYWORD);
-    expect(match?.taskDescription).toBe("fix the tests");
+    expect(match?.taskDescription).toBe("hey otto, can we fix the tests?");
   });
 
   it("is case-insensitive for the keyword", () => {
-    expect(detectTrigger(makeComment("OTTO do this"), REPO, KEYWORD)).not.toBeNull();
-    expect(detectTrigger(makeComment("Otto do this"), REPO, KEYWORD)).not.toBeNull();
+    expect(detectTrigger(makeComment("Hey OTTO, do this"), REPO, KEYWORD)).not.toBeNull();
+    expect(detectTrigger(makeComment("Hey Otto, do this"), REPO, KEYWORD)).not.toBeNull();
   });
 
-  it("trims leading and trailing whitespace from the body before matching", () => {
-    const match = detectTrigger(makeComment("  otto fix tests  "), REPO, KEYWORD);
+  it("matches a bare keyword with the keyword as taskDescription", () => {
+    const comment = makeComment("otto");
+    const match = detectTrigger(comment, REPO, KEYWORD);
     expect(match).not.toBeNull();
-    expect(match?.taskDescription).toBe("fix tests");
-  });
-
-  it("trims leading whitespace from taskDescription", () => {
-    const match = detectTrigger(makeComment("otto   lots of spaces"), REPO, KEYWORD);
-    expect(match?.taskDescription).toBe("lots of spaces");
+    expect(match?.taskDescription).toBe("otto");
   });
 
   it("includes the original comment in the match", () => {
-    const comment = makeComment("otto do it");
+    const comment = makeComment("hey otto do it");
     const match = detectTrigger(comment, REPO, KEYWORD);
     expect(match?.comment).toBe(comment);
   });
@@ -72,7 +69,12 @@ describe("detectTrigger()", () => {
   });
 
   it("works with a custom keyword", () => {
-    expect(detectTrigger(makeComment("bot run tests"), REPO, "bot")).not.toBeNull();
-    expect(detectTrigger(makeComment("otto run tests"), REPO, "bot")).toBeNull();
+    expect(detectTrigger(makeComment("hey bot, run tests"), REPO, "bot")).not.toBeNull();
+    expect(detectTrigger(makeComment("hey otto, run tests"), REPO, "bot")).toBeNull();
+  });
+
+  it("keyword adjacent to punctuation still matches", () => {
+    expect(detectTrigger(makeComment("otto, please fix this"), REPO, KEYWORD)).not.toBeNull();
+    expect(detectTrigger(makeComment("hey @otto fix this"), REPO, KEYWORD)).not.toBeNull();
   });
 });
