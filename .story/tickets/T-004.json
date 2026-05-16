@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-003"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Define the local state schema (StateFile): machine UUID, lastPolled per repo (Record<string, string>), seenCommentIds per repo (Record<string, number[]>). Generate machine UUID once on first run using crypto.randomUUID() and persist it. Implement atomic writes: write to state.json.tmp then rename. Implement otto.lock as an advisory lock to prevent two Otto processes running simultaneously on the same machine.",
   "id": "T-004",
   "order": 40,
   "phase": "p0",
-  "status": "open",
+  "status": "complete",
   "title": "Local state model + machine UUID generation and persistence",
   "type": "task"
 }

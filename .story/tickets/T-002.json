@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-001"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Implement the main daemon entry point: parse CLI args, load config, start the polling loop, and handle graceful shutdown on SIGTERM/SIGINT. The process should exit cleanly, waiting for any active runs to finish before exiting. Distinct from config loading (T-003) — this owns process lifecycle only.",
   "id": "T-002",
   "order": 20,
   "phase": "p0",
-  "status": "open",
+  "status": "complete",
   "title": "CLI entry point and daemon process lifecycle",
   "type": "task"
 }
