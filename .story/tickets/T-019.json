@@ -1,12 +1,12 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Handle daemon-level meta-commands that short-circuit normal agent dispatch. otto retry: re-trigger a fresh agent run for the same source comment (re-hydrate context, re-claim). otto cancel / otto stop / otto disregard and similar: post a status comment explaining that cancellation is not supported in this version, then mark the task ignored — no agent run, no worktree. These are checked before dispatch, not via a classifier. Neither triggers a run or worktree.",
   "id": "T-019",
   "order": 50,
   "phase": "p2",
-  "status": "open",
+  "status": "complete",
   "title": "otto retry and reserved keyword handling (cancel, stop → clarify)",
   "type": "task"
 }

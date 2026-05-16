@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-017"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "DECISION: Not needed. A bare 'otto' with no task description is passed to the agent with the full HydratedGitHubContext (issue body, PR description, all relevant comments). The agent infers intent from that context and asks for clarification itself if needed. No special pre-dispatch handling required. Intentionally not implemented.",
   "id": "T-020",
   "order": 60,
   "phase": "p2",
-  "status": "open",
+  "status": "complete",
   "title": "Bare otto intent inference with clarify fallback",
   "type": "task"
 }

@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-009"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "DECISION: Skip classification entirely. Pass full context to the LLM agent and let it decide whether to answer, modify, implement, or ask for clarification. Rule-based keyword matching is too fragile and duplicates intent-detection work the agent does anyway. Capability grants should be handled by giving the agent appropriate permissions up front. This ticket is intentionally not implemented.",
   "id": "T-018",
   "order": 40,
   "phase": "p2",
-  "status": "open",
+  "status": "complete",
   "title": "Rule-based task classifier (answer / modify_existing_pr / implement_issue / clarify / ignore)",
   "type": "task"
 }
