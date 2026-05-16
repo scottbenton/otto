@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { loadConfig } from "./config/index.js";
-import { Daemon } from "./daemon.js";
+import { createDaemon } from "./daemon.js";
 import { acquireLock } from "./state/index.js";
 import { StateStore } from "./state/store.js";
+import { registerShutdown } from "./shutdown.js";
 
 const DEFAULT_STATE_DIR = join(homedir(), ".otto");
+const SHUTDOWN_TIMEOUT_MS = 30_000;
 
 type ParsedArgs = {
   configPath: string | undefined;
   stateDir: string;
 };
 
-function parseArgs(argv: string[]): ParsedArgs {
+function parseArgs(argv: string[]): ParsedArgs | null {
   let configPath: string | undefined;
   let stateDir = DEFAULT_STATE_DIR;
 
@@ -23,21 +26,21 @@ function parseArgs(argv: string[]): ParsedArgs {
     if (arg === "--config") {
       const next = argv[i + 1];
       if (next === undefined || next.startsWith("-")) {
-        console.error("Error: --config requires a path argument");
-        process.exit(1);
+        process.stderr.write("Error: --config requires a path argument\n");
+        return null;
       }
       configPath = next;
       i++;
     } else if (arg === "--state-dir") {
       const next = argv[i + 1];
       if (next === undefined || next.startsWith("-")) {
-        console.error("Error: --state-dir requires a path argument");
-        process.exit(1);
+        process.stderr.write("Error: --state-dir requires a path argument\n");
+        return null;
       }
       stateDir = next;
       i++;
     } else if (arg === "--help" || arg === "-h") {
-      console.log(
+      process.stdout.write(
         [
           "otto — GitHub-triggered local agent runner",
           "",
@@ -48,12 +51,15 @@ function parseArgs(argv: string[]): ParsedArgs {
           "  --state-dir <path>  Path to state directory (default: ~/.otto)",
           "  --version           Print version and exit",
           "  --help              Show this message",
+          "",
         ].join("\n"),
       );
-      process.exit(0);
+      process.exitCode = 0;
+      return null;
     } else if (arg === "--version" || arg === "-v") {
-      console.log("0.1.0");
-      process.exit(0);
+      process.stdout.write("0.1.0\n");
+      process.exitCode = 0;
+      return null;
     }
   }
 
@@ -61,7 +67,10 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 async function main(): Promise<void> {
-  const { configPath, stateDir } = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2));
+  if (args === null) return;
+
+  const { configPath, stateDir } = args;
 
   const config = await loadConfig(configPath);
   const state = await StateStore.load(stateDir);
@@ -69,29 +78,51 @@ async function main(): Promise<void> {
 
   const repoCount = String(config.github.repos.length);
   const interval = String(config.otto.pollIntervalSeconds);
-  console.log(
-    `Otto starting — machine ${state.machineId}, polling ${repoCount} repo(s) every ${interval}s`,
+  process.stdout.write(
+    `Otto starting — machine ${state.machineId}, polling ${repoCount} repo(s) every ${interval}s\n`,
   );
 
-  const daemon = new Daemon();
+  const daemon = createDaemon({
+    start: async () => { /* polling loop — future ticket */ },
+    stop: async () => { /* cleanup — future ticket */ },
+  });
 
-  const shutdown = () => {
-    console.log("\nShutting down…");
-    daemon.stop();
-  };
-  process.once("SIGTERM", shutdown);
-  process.once("SIGINT", shutdown);
+  const shutdown = registerShutdown({ process });
 
   try {
     await daemon.start();
+    await shutdown.signal;
+
+    process.stdout.write("\nShutting down gracefully…\n");
+
+    const timeoutController = new AbortController();
+    const timeoutHandle = setTimeout(() => {
+      timeoutController.abort();
+    }, SHUTDOWN_TIMEOUT_MS);
+
+    await Promise.race([
+      daemon
+        .stop({ signal: timeoutController.signal })
+        .then(() => { clearTimeout(timeoutHandle); }),
+      shutdown.escalation.then(() => {
+        process.stderr.write("Forced exit on second signal.\n");
+        process.exit(1);
+      }),
+    ]);
   } finally {
+    shutdown.dispose();
     await releaseLock();
   }
 
-  console.log("Otto stopped.");
+  process.stdout.write("Otto stopped.\n");
 }
 
-main().catch((err: unknown) => {
-  console.error("Fatal:", err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+const entryPoint = process.argv[1];
+if (entryPoint !== undefined && import.meta.url === pathToFileURL(entryPoint).href) {
+  main().catch((err: unknown) => {
+    process.stderr.write(
+      `Fatal: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    process.exitCode = 1;
+  });
+}
