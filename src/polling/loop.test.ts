@@ -26,6 +26,7 @@ describe("PollingLoop", () => {
       state: {} as never,
       repos: ["owner/repo"],
       intervalMs,
+      authenticatedUser: "alice",
       onNewComments: onNewComments ?? (() => undefined),
     });
   }

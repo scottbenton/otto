@@ -102,6 +102,7 @@ async function main(): Promise<void> {
     state,
     repos: config.github.repos,
     intervalMs: config.otto.pollIntervalSeconds * 1000,
+    authenticatedUser: authenticatedLogin,
     onNewComments: (_repo, _comments) => { /* comment dispatch — future ticket */ },
   });
 

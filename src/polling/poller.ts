@@ -10,10 +10,23 @@ function subtractOneSecond(isoString: string): string {
   return d.toISOString();
 }
 
+export function filterComments(
+  comments: RawComment[],
+  authenticatedUser: string,
+  lastPolled: string | undefined,
+): RawComment[] {
+  return comments.filter((comment) => {
+    if (comment.user === null || comment.user.login !== authenticatedUser) return false;
+    if (lastPolled !== undefined && new Date(comment.created_at) < new Date(lastPolled)) return false;
+    return true;
+  });
+}
+
 export async function pollRepo(
   client: GitHubClient,
   state: StateStore,
   repo: string,
+  authenticatedUser: string,
 ): Promise<RawComment[]> {
   const rawSince = state.getLastPolled(repo);
   const params: Record<string, string> = { per_page: "100" };
@@ -45,16 +58,17 @@ export async function pollRepo(
     await state.addSeenCommentIds(repo, newIds);
   }
 
-  return newComments;
+  return filterComments(newComments, authenticatedUser, rawSince);
 }
 
 export async function runPollingTick(
   client: GitHubClient,
   state: StateStore,
   repos: string[],
+  authenticatedUser: string,
 ): Promise<Map<string, RawComment[]>> {
   const settled = await Promise.allSettled(
-    repos.map(async (repo) => ({ repo, comments: await pollRepo(client, state, repo) })),
+    repos.map(async (repo) => ({ repo, comments: await pollRepo(client, state, repo, authenticatedUser) })),
   );
 
   const result = new Map<string, RawComment[]>();
