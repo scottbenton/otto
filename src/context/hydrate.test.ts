@@ -50,8 +50,8 @@ function makeIssueResponse(opts: { isPr?: boolean; labels?: string[] } = {}) {
   };
 }
 
-function makePullResponse(base = "main", head = "fix-branch") {
-  return { base: { ref: base }, head: { ref: head } };
+function makePullResponse(base = "main", head = "fix-branch", sha = "abc123") {
+  return { base: { ref: base }, head: { ref: head, sha } };
 }
 
 function makeCommentResponse(count: number) {
@@ -79,8 +79,37 @@ function makeReviewCommentResponse(entries: { id: number; in_reply_to_id?: numbe
     user: { login: "dave" },
     body: `review comment ${String(id)}`,
     created_at: "2024-01-01T00:00:00Z",
+    path: "src/file.ts",
+    patch: "@@ -1 +1 @@\n-old\n+new",
+    position: 1,
     ...(in_reply_to_id !== undefined ? { in_reply_to_id } : {}),
   }));
+}
+
+function makeReviewCommentDetails(opts: {
+  id?: number;
+  path?: string;
+  patch?: string | null;
+  position?: number | null;
+} = {}) {
+  const { id = 200, path = "src/file.ts", patch = "@@ -1 +1 @@\n-old\n+new", position = 4 } = opts;
+  return {
+    id,
+    user: { login: "dave" },
+    body: "otto fix this line",
+    created_at: "2024-01-01T00:00:00Z",
+    path,
+    patch,
+    position,
+  };
+}
+
+function makeContentResponse(content = "export const value = 1;\n") {
+  return {
+    type: "file",
+    encoding: "base64",
+    content: Buffer.from(content, "utf8").toString("base64"),
+  };
 }
 
 function requestMock(client: GitHubClient): ReturnType<typeof vi.fn> {
@@ -97,6 +126,8 @@ type ClientOpts = {
   comments?: object[];
   reviews?: object[];
   reviewComments?: object[];
+  reviewCommentDetails?: object;
+  contentResponse?: object;
 };
 
 function makeClient(opts: ClientOpts = {}): GitHubClient {
@@ -105,9 +136,14 @@ function makeClient(opts: ClientOpts = {}): GitHubClient {
   const comments = opts.comments ?? makeCommentResponse(2);
   const reviews = opts.reviews ?? makeReviewResponse(1);
   const reviewComments = opts.reviewComments ?? [];
+  const reviewCommentDetails = opts.reviewCommentDetails ?? makeReviewCommentDetails();
+  const contentResponse = opts.contentResponse ?? makeContentResponse();
 
   return {
-    request: vi.fn().mockImplementation((url: string) => {
+    request: vi.fn().mockImplementation((url: string, options?: object) => {
+      void options;
+      if (/\/pulls\/comments\/\d+$/.test(url)) return Promise.resolve(reviewCommentDetails);
+      if (url.includes("/contents/")) return Promise.resolve(contentResponse);
       if (/\/pulls\/\d+$/.test(url)) return Promise.resolve(pull);
       return Promise.resolve(issue);
     }),
@@ -305,6 +341,88 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(ctx.pullRequest.baseBranch).toBe("develop");
     expect(ctx.pullRequest.headBranch).toBe("hotfix");
+  });
+
+  it("includes pullRequest head sha", async () => {
+    const client = makeClient({ pullResponse: makePullResponse("main", "feature", "head-sha") });
+    const ctx = await hydrateContext(client, makePrReviewComment());
+    if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
+    expect(ctx.pullRequest.headSha).toBe("head-sha");
+  });
+
+  it("fetches the triggering review comment by URL", async () => {
+    const comment = makePrReviewComment({ id: 321 });
+    const client = makeClient({});
+    await hydrateContext(client, comment);
+    expect(requestMock(client)).toHaveBeenCalledWith(comment.url);
+  });
+
+  it("marks a PR line comment as outdated when position is null", async () => {
+    const client = makeClient({
+      reviewCommentDetails: makeReviewCommentDetails({
+        id: 321,
+        path: "src/old.ts",
+        patch: "@@ -1 +1 @@",
+        position: null,
+      }),
+    });
+
+    const ctx = await hydrateContext(client, makePrReviewComment({ id: 321 }));
+
+    if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
+    expect(ctx.lineComment).toEqual({
+      outdated: true,
+      id: 321,
+      path: "src/old.ts",
+      patch: "@@ -1 +1 @@",
+      position: null,
+      clarifyMessage:
+        "This PR line comment is outdated because the code it was attached to has changed. Please ask Otto again on a current line or include the current context.",
+    });
+  });
+
+  it("does not fetch file contents for an outdated PR line comment", async () => {
+    const client = makeClient({
+      reviewCommentDetails: makeReviewCommentDetails({ position: null }),
+    });
+
+    await hydrateContext(client, makePrReviewComment());
+
+    const requestCalls = requestMock(client).mock.calls as [string][];
+    expect(requestCalls.every(([url]) => !url.includes("/contents/"))).toBe(true);
+  });
+
+  it("fetches current file contents for a non-outdated PR line comment at the PR head sha", async () => {
+    const client = makeClient({
+      pullResponse: makePullResponse("main", "feature", "head-sha"),
+      reviewCommentDetails: makeReviewCommentDetails({
+        id: 321,
+        path: "src/nested/file.ts",
+        patch: "@@ -2 +2 @@\n-old\n+new",
+        position: 8,
+      }),
+      contentResponse: makeContentResponse("const current = true;\n"),
+    });
+
+    const ctx = await hydrateContext(client, makePrReviewComment({ id: 321 }));
+
+    if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
+    expect(requestMock(client)).toHaveBeenCalledWith(
+      "/repos/owner/repo/contents/src/nested/file.ts",
+      { params: { ref: "head-sha" } },
+    );
+    expect(ctx.lineComment).toEqual({
+      outdated: false,
+      id: 321,
+      path: "src/nested/file.ts",
+      patch: "@@ -2 +2 @@\n-old\n+new",
+      position: 8,
+      currentFile: {
+        path: "src/nested/file.ts",
+        ref: "head-sha",
+        content: "const current = true;\n",
+      },
+    });
   });
 
   describe("inlineThread extraction", () => {

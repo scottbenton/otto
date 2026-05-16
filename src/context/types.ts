@@ -10,6 +10,7 @@ export type IssueDetails = {
 export type PullRequestDetails = {
   baseBranch: string;
   headBranch: string;
+  headSha: string;
 };
 
 export type ThreadComment = {
@@ -26,6 +27,28 @@ export type PullRequestReview = {
   body: string | null;
   submittedAt: string | null;
 };
+
+export type PullRequestLineContext =
+  | {
+      outdated: true;
+      id: number;
+      path: string;
+      patch: string | null;
+      position: null;
+      clarifyMessage: string;
+    }
+  | {
+      outdated: false;
+      id: number;
+      path: string;
+      patch: string | null;
+      position: number;
+      currentFile: {
+        path: string;
+        ref: string;
+        content: string;
+      };
+    };
 
 export type IssueContext = {
   kind: "issue";
@@ -46,6 +69,7 @@ export type PullRequestContext = {
   pullRequest: PullRequestDetails;
   reviews: PullRequestReview[];
   inlineThread: ThreadComment[];
+  lineComment?: PullRequestLineContext;
 };
 
 export type HydratedContext = IssueContext | PullRequestContext;
