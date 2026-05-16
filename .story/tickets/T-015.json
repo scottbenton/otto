@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-012"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "After claiming a task from an issue comment or PR conversation comment, fetch fresh context: GET /repos/{owner}/{repo}/issues/{number} (title, body, labels, state, author), GET /repos/{owner}/{repo}/issues/{number}/comments (all comments, paginated). For PR conversation: additionally fetch GET /repos/{owner}/{repo}/pulls/{number} (base/head refs) and GET /repos/{owner}/{repo}/pulls/{number}/reviews. Truncate at 200 comments with a note in the context.",
   "id": "T-015",
   "order": 10,
   "phase": "p2",
-  "status": "inprogress",
+  "status": "complete",
   "title": "GitHub context hydration — issue and PR conversation comments",
   "type": "task"
 }

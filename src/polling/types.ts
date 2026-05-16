@@ -19,6 +19,9 @@ export type PullRequestReviewComment = {
   pull_request_url: string;
   html_url: string;
   in_reply_to_id?: number;
+  path?: string;
+  patch?: string | null;
+  position?: number | null;
 };
 
 export type RawComment = IssueComment | PullRequestReviewComment;

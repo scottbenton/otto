@@ -1,8 +1,11 @@
+import { Buffer } from "node:buffer";
+
 import type { GitHubClient } from "../github/client.js";
 import type { IssueComment, PullRequestReviewComment, RawComment } from "../polling/types.js";
 import type {
   HydratedContext,
   IssueDetails,
+  PullRequestLineContext,
   PullRequestReview,
   ThreadComment,
 } from "./types.js";
@@ -21,7 +24,7 @@ type GitHubIssueResponse = {
 
 type GitHubPullResponse = {
   base: { ref: string };
-  head: { ref: string };
+  head: { ref: string; sha: string };
 };
 
 type GitHubReviewResponse = {
@@ -41,6 +44,15 @@ type GitHubCommentResponse = {
 
 type GitHubReviewCommentResponse = GitHubCommentResponse & {
   in_reply_to_id?: number;
+  path: string;
+  patch: string | null;
+  position: number | null;
+};
+
+type GitHubContentResponse = {
+  type: string;
+  encoding: string;
+  content: string;
 };
 
 function isIssueComment(comment: RawComment): comment is IssueComment {
@@ -88,6 +100,14 @@ function toReview(raw: GitHubReviewResponse): PullRequestReview {
   };
 }
 
+function toPullRequestDetails(raw: GitHubPullResponse) {
+  return {
+    baseBranch: raw.base.ref,
+    headBranch: raw.head.ref,
+    headSha: raw.head.sha,
+  };
+}
+
 async function fetchComments(
   client: GitHubClient,
   commentsUrl: string,
@@ -106,6 +126,56 @@ function extractInlineThread(
   return allComments
     .filter((c) => c.id === rootId || c.in_reply_to_id === rootId)
     .map(toThreadComment);
+}
+
+function contentsUrl(owner: string, repo: string, path: string): string {
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  return `/repos/${owner}/${repo}/contents/${encodedPath}`;
+}
+
+function decodeContent(raw: GitHubContentResponse): string {
+  if (raw.type !== "file" || raw.encoding !== "base64") {
+    throw new Error("GitHub contents response is not a base64 file");
+  }
+  return Buffer.from(raw.content.replace(/\s/g, ""), "base64").toString("utf8");
+}
+
+async function buildLineContext(
+  client: GitHubClient,
+  owner: string,
+  repo: string,
+  headSha: string,
+  raw: GitHubReviewCommentResponse,
+): Promise<PullRequestLineContext> {
+  if (raw.position === null) {
+    return {
+      outdated: true,
+      id: raw.id,
+      path: raw.path,
+      patch: raw.patch,
+      position: null,
+      clarifyMessage:
+        "This PR line comment is outdated because the code it was attached to has changed. Please ask Otto again on a current line or include the current context.",
+    };
+  }
+
+  const file = await client.request<GitHubContentResponse>(
+    contentsUrl(owner, repo, raw.path),
+    { params: { ref: headSha } },
+  );
+
+  return {
+    outdated: false,
+    id: raw.id,
+    path: raw.path,
+    patch: raw.patch,
+    position: raw.position,
+    currentFile: {
+      path: raw.path,
+      ref: headSha,
+      content: decodeContent(file),
+    },
+  };
 }
 
 async function hydrateFromIssueUrl(
@@ -128,7 +198,7 @@ async function hydrateFromIssueUrl(
       repo,
       number,
       issue,
-      pullRequest: { baseBranch: pullRaw.base.ref, headBranch: pullRaw.head.ref },
+      pullRequest: toPullRequestDetails(pullRaw),
       reviews: reviewsRaw.map(toReview),
       inlineThread: [],
     };
@@ -152,6 +222,14 @@ async function hydrateFromPrUrl(
     client.paginateAll<GitHubReviewResponse>(`${pullUrl}/reviews`),
     client.paginateAll<GitHubReviewCommentResponse>(`${pullUrl}/comments`),
   ]);
+  const reviewCommentRaw = await client.request<GitHubReviewCommentResponse>(trigger.url);
+  const lineComment = await buildLineContext(
+    client,
+    owner,
+    repo,
+    pullRaw.head.sha,
+    reviewCommentRaw,
+  );
 
   return {
     kind: "pull_request",
@@ -159,9 +237,10 @@ async function hydrateFromPrUrl(
     repo,
     number,
     issue: toIssueDetails(issueRaw),
-    pullRequest: { baseBranch: pullRaw.base.ref, headBranch: pullRaw.head.ref },
+    pullRequest: toPullRequestDetails(pullRaw),
     reviews: reviewsRaw.map(toReview),
     inlineThread: extractInlineThread(allReviewComments, trigger),
+    lineComment,
   };
 }
 
