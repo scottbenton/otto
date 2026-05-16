@@ -96,17 +96,6 @@ describe("filterComments()", () => {
     expect(filterComments([foreign], "alice", undefined)).toHaveLength(0);
   });
 
-  it("logs filtered comments at debug level with the reason", () => {
-    const logger = makeLogger();
-    const foreign = makeComment(1, { login: "bot" });
-
-    expect(filterComments([foreign], "alice", undefined, logger, "owner/repo")).toHaveLength(0);
-
-    expect(logger.debug).toHaveBeenCalledWith(
-      { repo: "owner/repo", commentId: 1, reason: "unauthenticated-user" },
-      "comment filtered",
-    );
-  });
 });
 
 describe("pollRepo()", () => {
@@ -229,6 +218,30 @@ describe("pollRepo()", () => {
         filteredCommentCount: 1,
       },
       "poll tick completed",
+    );
+  });
+
+  it("logs aggregate filtered comment counts without per-comment noise", async () => {
+    const logger = makeLogger();
+    const fresh = makeComment(1, { createdAt: "2024-06-01T12:00:10.000Z" });
+    const foreign = makeComment(2, { createdAt: "2024-06-01T12:00:10.000Z", login: "bot" });
+    const stale = makeComment(3, { createdAt: "2024-06-01T11:59:58.000Z" });
+    const client = makeClient([fresh, foreign, stale], []);
+    const state = makeState({ lastPolled: "2024-06-01T12:00:00.000Z" });
+
+    await pollRepo(client, state, "owner/repo", "alice", logger);
+
+    expect(logger.debug).toHaveBeenCalledWith(
+      {
+        filteredCount: 2,
+        filteredByUnauthenticatedUser: 1,
+        filteredByCreatedBeforeLastPoll: 1,
+      },
+      "comments filtered",
+    );
+    expect(logger.debug).not.toHaveBeenCalledWith(
+      expect.objectContaining({ commentId: 2 }),
+      "comment filtered",
     );
   });
 });

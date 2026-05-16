@@ -5,34 +5,47 @@ import type { RawComment } from "./types.js";
 
 const OVERLAP_SECONDS = 1;
 
+type FilterStats = {
+  unauthenticatedUser: number;
+  createdBeforeLastPoll: number;
+};
+
 function subtractOneSecond(isoString: string): string {
   const d = new Date(isoString);
   d.setSeconds(d.getSeconds() - OVERLAP_SECONDS);
   return d.toISOString();
 }
 
+function emptyFilterStats(): FilterStats {
+  return {
+    unauthenticatedUser: 0,
+    createdBeforeLastPoll: 0,
+  };
+}
+
 export function filterComments(
   comments: RawComment[],
   authenticatedUser: string,
   lastPolled: string | undefined,
-  logger: OttoLogger = noopLogger,
-  repo?: string,
+): RawComment[] {
+  return filterCommentsWithStats(comments, authenticatedUser, lastPolled, emptyFilterStats());
+}
+
+function filterCommentsWithStats(
+  comments: RawComment[],
+  authenticatedUser: string,
+  lastPolled: string | undefined,
+  stats: FilterStats,
 ): RawComment[] {
   const filtered: RawComment[] = [];
 
   for (const comment of comments) {
     if (comment.user?.login !== authenticatedUser) {
-      logger.debug(
-        { repo, commentId: comment.id, reason: "unauthenticated-user" },
-        "comment filtered",
-      );
+      stats.unauthenticatedUser++;
       continue;
     }
     if (lastPolled !== undefined && new Date(comment.created_at) < new Date(lastPolled)) {
-      logger.debug(
-        { repo, commentId: comment.id, reason: "created-before-last-poll" },
-        "comment filtered",
-      );
+      stats.createdBeforeLastPoll++;
       continue;
     }
     filtered.push(comment);
@@ -81,7 +94,24 @@ export async function pollRepo(
     await state.addSeenCommentIds(repo, newIds);
   }
 
-  const filteredComments = filterComments(newComments, authenticatedUser, rawSince, logger, repo);
+  const filterStats = emptyFilterStats();
+  const filteredComments = filterCommentsWithStats(
+    newComments,
+    authenticatedUser,
+    rawSince,
+    filterStats,
+  );
+  const filteredCount = filterStats.unauthenticatedUser + filterStats.createdBeforeLastPoll;
+  if (filteredCount > 0) {
+    repoLogger.debug(
+      {
+        filteredCount,
+        filteredByUnauthenticatedUser: filterStats.unauthenticatedUser,
+        filteredByCreatedBeforeLastPoll: filterStats.createdBeforeLastPoll,
+      },
+      "comments filtered",
+    );
+  }
   repoLogger.debug(
     {
       issueCommentCount: issueComments.length,
