@@ -46,6 +46,10 @@ function paginateAllMock(client: GitHubClient): ReturnType<typeof vi.fn> {
   return Reflect.get(client, "paginateAll") as ReturnType<typeof vi.fn>;
 }
 
+function requestMock(client: GitHubClient): ReturnType<typeof vi.fn> {
+  return Reflect.get(client, "request") as ReturnType<typeof vi.fn>;
+}
+
 function statusBody(sourceKey: string): string {
   return `<!-- otto:v1 status run=run-uuid machine=machine-uuid source=${sourceKey} -->\n\nOtto is working on this.`;
 }
@@ -154,7 +158,7 @@ describe("claimOrAbort()", () => {
     const client = makeClient([{ body: existing }]);
 
     expect(await claimOrAbort(client, trigger, MACHINE_ID)).toEqual({ claimed: false });
-    expect(client.request).not.toHaveBeenCalled();
+    expect(requestMock(client)).not.toHaveBeenCalled();
   });
 
   it("posts to the issue comments URL for an issue comment trigger", async () => {
@@ -220,7 +224,7 @@ describe("claimOrAbort()", () => {
 
     const result = await claimOrAbort(client, trigger, MACHINE_ID);
     expect(result.claimed).toBe(true);
-    expect(client.request).toHaveBeenCalledTimes(1);
+    expect(requestMock(client)).toHaveBeenCalledTimes(1);
   });
 
   it("returns { claimed: false } and patches abort when we lose the race", async () => {
@@ -238,12 +242,12 @@ describe("claimOrAbort()", () => {
     const result = await claimOrAbort(client, trigger, MACHINE_ID);
     expect(result.claimed).toBe(false);
 
-    const calls = (client.request as ReturnType<typeof vi.fn>).mock.calls as [string, { method: string; body: { body: string } }][];
+    const calls = requestMock(client).mock.calls as [string, { method: string; body: { body: string } }][];
     expect(calls).toHaveLength(2);
-    const patchCall = calls[1]!;
-    expect(patchCall[0]).toBe("https://api.github.com/repos/owner/repo/issues/comments/42");
-    expect(patchCall[1].method).toBe("PATCH");
-    expect(patchCall[1].body.body).toContain("aborted (duplicate claim)");
+    const patchCall = calls[1];
+    expect(patchCall?.[0]).toBe("https://api.github.com/repos/owner/repo/issues/comments/42");
+    expect(patchCall?.[1].method).toBe("PATCH");
+    expect(patchCall?.[1].body.body).toContain("aborted (duplicate claim)");
   });
 
   it("patches the correct PR review comment update URL when losing the race", async () => {
@@ -260,7 +264,7 @@ describe("claimOrAbort()", () => {
 
     await claimOrAbort(client, trigger, MACHINE_ID);
 
-    const calls = (client.request as ReturnType<typeof vi.fn>).mock.calls as [string][];
-    expect(calls[1]![0]).toBe("https://api.github.com/repos/owner/repo/pulls/comments/201");
+    const calls = requestMock(client).mock.calls as [string][];
+    expect(calls[1]?.[0]).toBe("https://api.github.com/repos/owner/repo/pulls/comments/201");
   });
 });

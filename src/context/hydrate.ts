@@ -15,7 +15,7 @@ type GitHubIssueResponse = {
   body: string | null;
   state: string;
   user: { login: string } | null;
-  labels: Array<{ name?: string }>;
+  labels: { name?: string }[];
   pull_request?: { url: string };
 };
 
@@ -49,10 +49,13 @@ function isIssueComment(comment: RawComment): comment is IssueComment {
 
 function parseRepoInfo(url: string): { owner: string; repo: string; number: number } {
   const match = /\/repos\/([^/]+)\/([^/]+)\/(issues|pulls)\/(\d+)$/.exec(url);
-  if (match === null) {
+  const owner = match?.[1];
+  const repo = match?.[2];
+  const numberStr = match?.[4];
+  if (owner === undefined || repo === undefined || numberStr === undefined) {
     throw new Error(`Cannot parse repo info from URL: ${url}`);
   }
-  return { owner: match[1]!, repo: match[2]!, number: parseInt(match[4]!, 10) };
+  return { owner, repo, number: parseInt(numberStr, 10) };
 }
 
 function toIssueDetails(raw: GitHubIssueResponse): IssueDetails {

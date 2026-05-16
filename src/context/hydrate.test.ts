@@ -73,7 +73,7 @@ function makeReviewResponse(count: number) {
   }));
 }
 
-function makeReviewCommentResponse(entries: Array<{ id: number; in_reply_to_id?: number }>) {
+function makeReviewCommentResponse(entries: { id: number; in_reply_to_id?: number }[]) {
   return entries.map(({ id, in_reply_to_id }) => ({
     id,
     user: { login: "dave" },
@@ -81,6 +81,14 @@ function makeReviewCommentResponse(entries: Array<{ id: number; in_reply_to_id?:
     created_at: "2024-01-01T00:00:00Z",
     ...(in_reply_to_id !== undefined ? { in_reply_to_id } : {}),
   }));
+}
+
+function requestMock(client: GitHubClient): ReturnType<typeof vi.fn> {
+  return Reflect.get(client, "request") as ReturnType<typeof vi.fn>;
+}
+
+function paginateAllMock(client: GitHubClient): ReturnType<typeof vi.fn> {
+  return Reflect.get(client, "paginateAll") as ReturnType<typeof vi.fn>;
 }
 
 type ClientOpts = {
@@ -150,14 +158,14 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
     const comment = makeIssueComment(3);
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.request).toHaveBeenCalledWith(comment.issue_url);
+    expect(requestMock(client)).toHaveBeenCalledWith(comment.issue_url);
   });
 
   it("fetches comments from issue_url/comments", async () => {
     const comment = makeIssueComment(3);
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.paginateAll).toHaveBeenCalledWith(`${comment.issue_url}/comments`);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${comment.issue_url}/comments`);
   });
 
   it("sets truncated: false when comments <= 200", async () => {
@@ -231,20 +239,20 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
   it("does not fetch thread comments", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
     await hydrateContext(client, makeIssueComment(1));
-    const paginateCalls = (client.paginateAll as ReturnType<typeof vi.fn>).mock.calls as [string][];
+    const paginateCalls = paginateAllMock(client).mock.calls as [string][];
     expect(paginateCalls.every(([url]) => !url.endsWith("/comments"))).toBe(true);
   });
 
   it("fetches pulls URL derived from issue_url", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
     await hydrateContext(client, makeIssueComment(1));
-    expect(client.request).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1`);
+    expect(requestMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1`);
   });
 
   it("fetches reviews from pulls/{number}/reviews", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
     await hydrateContext(client, makeIssueComment(1));
-    expect(client.paginateAll).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1/reviews`);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1/reviews`);
   });
 });
 
@@ -267,28 +275,28 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.request).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/issues/2`);
+    expect(requestMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/issues/2`);
   });
 
   it("fetches PR details from pull_request_url", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.request).toHaveBeenCalledWith(comment.pull_request_url);
+    expect(requestMock(client)).toHaveBeenCalledWith(comment.pull_request_url);
   });
 
   it("fetches all review comments from pulls/{number}/comments", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.paginateAll).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/comments`);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/comments`);
   });
 
   it("fetches reviews from pull_request_url/reviews", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
     await hydrateContext(client, comment);
-    expect(client.paginateAll).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/reviews`);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/reviews`);
   });
 
   it("includes pullRequest branch refs", async () => {
