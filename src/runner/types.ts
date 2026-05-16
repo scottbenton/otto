@@ -1,4 +1,4 @@
-import type { HydratedContext } from "../context/types.js";
+import type { HydratedGitHubContext } from "../context/types.js";
 
 export type RunnerCapabilities = {
   canEdit: boolean;
@@ -8,7 +8,7 @@ export type RunnerCapabilities = {
 
 export type AgentRunInput = {
   task: string;
-  context: HydratedContext;
+  context: HydratedGitHubContext;
   repoPaths: string[];
   capabilityGrants: Partial<RunnerCapabilities>;
   timeoutMs: number;
