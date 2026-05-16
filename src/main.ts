@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { loadConfig } from "./config/index.js";
 import { createDaemon } from "./daemon.js";
 import { GitHubClient, resolveAuthenticatedUser } from "./github/index.js";
+import { PollingLoop } from "./polling/index.js";
 import { acquireLock } from "./state/index.js";
 import { StateStore } from "./state/store.js";
 import { registerShutdown } from "./shutdown.js";
@@ -96,9 +97,19 @@ async function main(): Promise<void> {
     `Otto starting — authenticated as ${authenticatedLogin}, machine ${state.machineId}, polling ${repoCount} repo(s) every ${interval}s\n`,
   );
 
+  const pollingLoop = new PollingLoop({
+    client: github,
+    state,
+    repos: config.github.repos,
+    intervalMs: config.otto.pollIntervalSeconds * 1000,
+    onNewComments: (_repo, _comments) => { /* comment dispatch — future ticket */ },
+  });
+
   const daemon = createDaemon({
-    start: async () => { /* polling loop — future ticket */ },
+    start: async () => { pollingLoop.start(); },
     stop: async () => { /* cleanup — future ticket */ },
+    beginShutdown: () => { pollingLoop.beginShutdown(); },
+    waitForIdle: (opts) => pollingLoop.waitForIdle(),
   });
 
   const shutdown = registerShutdown({ process });
