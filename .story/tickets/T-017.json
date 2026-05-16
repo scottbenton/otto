@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-016"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Define and implement the HydratedGitHubContext type that normalizes all three comment source types (issue comment, PR conversation comment, PR line comment) into a single structure the classifier and agent can consume. Fields: sourceType, issue/PR metadata, all relevant comments, file context (for line comments), truncation flags. This is the output contract for T-015 and T-016.",
   "id": "T-017",
   "order": 30,
   "phase": "p2",
-  "status": "open",
+  "status": "complete",
   "title": "Context normalization (unified HydratedGitHubContext type)",
   "type": "task"
 }

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { HydratedContext } from "../context/types.js";
+import type { HydratedGitHubContext } from "../context/types.js";
 import type { AgentRunner, AgentRunInput, AgentRunResult } from "./types.js";
 import { MockRunner } from "./mock.js";
 
-function makeContext(): HydratedContext {
+function makeContext(): HydratedGitHubContext {
   return {
-    kind: "issue",
+    sourceType: "issue_comment",
     owner: "owner",
     repo: "repo",
     number: 1,
@@ -18,8 +18,11 @@ function makeContext(): HydratedContext {
       author: "alice",
       labels: ["bug"],
     },
+    pullRequest: null,
+    reviews: [],
     comments: [],
     truncated: false,
+    lineContext: null,
   };
 }
 

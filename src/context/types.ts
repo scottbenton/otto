@@ -73,3 +73,18 @@ export type PullRequestContext = {
 };
 
 export type HydratedContext = IssueContext | PullRequestContext;
+
+export type SourceType = "issue_comment" | "pr_conversation_comment" | "pr_line_comment";
+
+export type HydratedGitHubContext = {
+  sourceType: SourceType;
+  owner: string;
+  repo: string;
+  number: number;
+  issue: IssueDetails;
+  pullRequest: PullRequestDetails | null;
+  reviews: PullRequestReview[];
+  comments: ThreadComment[];
+  truncated: boolean;
+  lineContext: PullRequestLineContext | null;
+};
