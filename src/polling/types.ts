@@ -18,6 +18,7 @@ export type PullRequestReviewComment = {
   updated_at: string;
   pull_request_url: string;
   html_url: string;
+  in_reply_to_id?: number;
 };
 
 export type RawComment = IssueComment | PullRequestReviewComment;

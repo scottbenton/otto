@@ -1,5 +1,5 @@
 import type { GitHubClient } from "../github/client.js";
-import type { IssueComment, RawComment } from "../polling/types.js";
+import type { IssueComment, PullRequestReviewComment, RawComment } from "../polling/types.js";
 import type {
   HydratedContext,
   IssueDetails,
@@ -37,6 +37,10 @@ type GitHubCommentResponse = {
   user: { login: string } | null;
   body: string;
   created_at: string;
+};
+
+type GitHubReviewCommentResponse = GitHubCommentResponse & {
+  in_reply_to_id?: number;
 };
 
 function isIssueComment(comment: RawComment): comment is IssueComment {
@@ -90,6 +94,17 @@ async function fetchComments(
   return { comments: raw.slice(0, MAX_COMMENTS).map(toThreadComment), truncated };
 }
 
+function extractInlineThread(
+  allComments: GitHubReviewCommentResponse[],
+  trigger: PullRequestReviewComment,
+): ThreadComment[] {
+  // All replies in a GitHub thread point to the root comment via in_reply_to_id.
+  const rootId = trigger.in_reply_to_id ?? trigger.id;
+  return allComments
+    .filter((c) => c.id === rootId || c.in_reply_to_id === rootId)
+    .map(toThreadComment);
+}
+
 async function hydrateFromIssueUrl(
   client: GitHubClient,
   issueUrl: string,
@@ -112,6 +127,7 @@ async function hydrateFromIssueUrl(
       issue,
       pullRequest: { baseBranch: pullRaw.base.ref, headBranch: pullRaw.head.ref },
       reviews: reviewsRaw.map(toReview),
+      inlineThread: [],
     };
   }
 
@@ -121,15 +137,17 @@ async function hydrateFromIssueUrl(
 
 async function hydrateFromPrUrl(
   client: GitHubClient,
-  pullUrl: string,
+  trigger: PullRequestReviewComment,
 ): Promise<HydratedContext> {
+  const pullUrl = trigger.pull_request_url;
   const { owner, repo, number } = parseRepoInfo(pullUrl);
   const issueUrl = pullUrl.replace(/\/pulls\/(\d+)$/, "/issues/$1");
 
-  const [issueRaw, pullRaw, reviewsRaw] = await Promise.all([
+  const [issueRaw, pullRaw, reviewsRaw, allReviewComments] = await Promise.all([
     client.request<GitHubIssueResponse>(issueUrl),
     client.request<GitHubPullResponse>(pullUrl),
     client.paginateAll<GitHubReviewResponse>(`${pullUrl}/reviews`),
+    client.paginateAll<GitHubReviewCommentResponse>(`${pullUrl}/comments`),
   ]);
 
   return {
@@ -140,6 +158,7 @@ async function hydrateFromPrUrl(
     issue: toIssueDetails(issueRaw),
     pullRequest: { baseBranch: pullRaw.base.ref, headBranch: pullRaw.head.ref },
     reviews: reviewsRaw.map(toReview),
+    inlineThread: extractInlineThread(allReviewComments, trigger),
   };
 }
 
@@ -150,5 +169,5 @@ export async function hydrateContext(
   if (isIssueComment(comment)) {
     return hydrateFromIssueUrl(client, comment.issue_url);
   }
-  return hydrateFromPrUrl(client, comment.pull_request_url);
+  return hydrateFromPrUrl(client, comment);
 }
