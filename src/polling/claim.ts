@@ -1,5 +1,6 @@
 import type { GitHubClient } from "../github/client.js";
 import type { IssueComment, RawComment } from "./types.js";
+import { buildComment } from "./format.js";
 
 function isIssueComment(comment: RawComment): comment is IssueComment {
   return "issue_url" in comment;
@@ -50,15 +51,6 @@ function bodyHasClaimFor(body: string, sourceKey: string): boolean {
   return new RegExp(`\\bsource=${escapeRegex(sourceKey)}\\b`).test(body);
 }
 
-const COMMENT_FOOTER = "\n\n---\n[🤖 Otto](https://github.com/scottbenton/otto)";
-
-function buildStatusBody(runId: string, machineId: string, sourceKey: string): string {
-  return `<!-- otto:v1 status run=${runId} machine=${machineId} source=${sourceKey} -->\n**[Otto]** Status: running${COMMENT_FOOTER}`;
-}
-
-function buildAbortBody(runId: string, machineId: string, sourceKey: string): string {
-  return `<!-- otto:v1 status run=${runId} machine=${machineId} source=${sourceKey} -->\n**[Otto]** Status: aborted (duplicate claim)${COMMENT_FOOTER}`;
-}
 
 type StatusCommentEntry = { id: number; created_at: string };
 
@@ -98,7 +90,7 @@ export async function claimOrAbort(
 
   const runId = crypto.randomUUID();
   const sourceKey = commentSourceKey(trigger);
-  const statusBody = buildStatusBody(runId, machineId, sourceKey);
+  const statusBody = buildComment(runId, machineId, sourceKey, "Status: running");
 
   const created = await client.request<{ id: number; created_at: string }>(
     createCommentUrl(trigger),
@@ -121,7 +113,7 @@ export async function claimOrAbort(
 
   await client.request(updateCommentUrl(trigger, created.id), {
     method: "PATCH",
-    body: { body: buildAbortBody(runId, machineId, sourceKey) },
+    body: { body: buildComment(runId, machineId, sourceKey, "Status: aborted (duplicate claim)") },
   });
 
   return { claimed: false };
