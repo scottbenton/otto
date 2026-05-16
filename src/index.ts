@@ -1,4 +1,11 @@
-export { Daemon } from "./daemon.js";
+export {
+  createDaemon,
+  type Daemon,
+  type DaemonState,
+  type LifecycleRuntime,
+  type StopOptions,
+} from "./daemon.js";
+export { registerShutdown, type ShutdownRegistration, type ProcessLike } from "./shutdown.js";
 export {
   loadConfig,
   ConfigError,
