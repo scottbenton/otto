@@ -32,7 +32,7 @@ export class StateStore {
       data = StateFileSchema.parse(JSON.parse(raw) as unknown);
     } catch {
       data = StateFileSchema.parse({
-        machineId: crypto.randomUUID(),
+        machineId: crypto.randomUUID()
       });
       await atomicWrite(statePath, JSON.stringify(data, null, 2));
     }
@@ -52,10 +52,14 @@ export class StateStore {
     return this.#data.seenCommentIds[repo] ?? [];
   }
 
+  getRepoDefaultBranch(repo: string): string | undefined {
+    return this.#data.repoDefaultBranches[repo];
+  }
+
   async setLastPolled(repo: string, timestamp: string): Promise<void> {
     this.#data = {
       ...this.#data,
-      lastPolled: { ...this.#data.lastPolled, [repo]: timestamp },
+      lastPolled: { ...this.#data.lastPolled, [repo]: timestamp }
     };
     await this.#save();
   }
@@ -67,8 +71,19 @@ export class StateStore {
       ...this.#data,
       seenCommentIds: {
         ...this.#data.seenCommentIds,
-        [repo]: [...existing],
-      },
+        [repo]: [...existing]
+      }
+    };
+    await this.#save();
+  }
+
+  async setRepoDefaultBranch(repo: string, defaultBranch: string): Promise<void> {
+    this.#data = {
+      ...this.#data,
+      repoDefaultBranches: {
+        ...this.#data.repoDefaultBranches,
+        [repo]: defaultBranch
+      }
     };
     await this.#save();
   }

@@ -1,14 +1,12 @@
 {
-  "blockedBy": [
-    "T-003"
-  ],
-  "completedDate": null,
+  "blockedBy": [],
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Manage local repository checkouts under the configured reposDir. On first use of a repo: git clone <url> to reposDir/{owner}-{repo}. On subsequent uses: git fetch origin && git merge --ff-only origin/{defaultBranch} to update. Never touch the user's own clones outside reposDir. Store the resolved default branch name after cloning.",
   "id": "T-025",
   "order": 10,
   "phase": "p3",
-  "status": "open",
+  "status": "complete",
   "title": "Repo clone/reuse manager",
   "type": "task"
 }
