@@ -4,7 +4,7 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-16",
-  "description": "When taskDescription is empty (bare 'otto' with no other text), attempt to infer intent from the surrounding thread: issue body, PR description, most recent human comments. If the issue or PR has a clear action-oriented description (e.g. a bug report, feature request, or TODO list), classify accordingly. If intent cannot be confidently determined, respond with a clarify status comment asking the user to be more specific. Never attempt a write operation on ambiguous bare invocations.",
+  "description": "DECISION: Not needed. A bare 'otto' with no task description is passed to the agent with the full HydratedGitHubContext (issue body, PR description, all relevant comments). The agent infers intent from that context and asks for clarification itself if needed. No special pre-dispatch handling required. Intentionally not implemented.",
   "id": "T-020",
   "order": 60,
   "phase": "p2",
