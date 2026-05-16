@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-009"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Immediately before posting a status comment to claim a task, re-fetch all comments on the thread (issue comments or PR comments depending on source type) and search for any comment matching the pattern <!-- otto:v1 status ... source=<current-comment-type>:<current-comment-id> -->. If one is found, this comment is already claimed — skip it entirely. This re-fetch is the primary race prevention mechanism.",
   "id": "T-011",
   "order": 70,
   "phase": "p1",
-  "status": "open",
+  "status": "complete",
   "title": "Status comment existence check (claim gate)",
   "type": "task"
 }
