@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { StateStore } from "../state/store.js";
 import type { TriggerMatch } from "./trigger.js";
-import { filterUnseenTriggers } from "./dispatch.js";
+import type { PullRequestReviewComment } from "./types.js";
+import { filterUnseenTriggers, getTriggerTargetKey, RunConcurrencyGate } from "./dispatch.js";
 
 function makeMatch(id: number, repo = "owner/repo"): TriggerMatch {
   return {
@@ -18,6 +19,25 @@ function makeMatch(id: number, repo = "owner/repo"): TriggerMatch {
     },
     repo,
     taskDescription: "hey otto fix this",
+  };
+}
+
+function makePrMatch(id: number, repo = "owner/repo"): TriggerMatch {
+  const comment: PullRequestReviewComment = {
+    id,
+    body: "hey otto fix this line",
+    user: { login: "alice" },
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    url: `https://api.github.com/repos/owner/repo/pulls/comments/${String(id)}`,
+    html_url: `https://github.com/owner/repo/pull/7#discussion_r${String(id)}`,
+    pull_request_url: "https://api.github.com/repos/owner/repo/pulls/7",
+  };
+
+  return {
+    comment,
+    repo,
+    taskDescription: "hey otto fix this line",
   };
 }
 
@@ -67,5 +87,82 @@ describe("filterUnseenTriggers()", () => {
     filterUnseenTriggers(matches, state, "org/repo-a");
 
     expect(getSeenCommentIdsMock(state)).toHaveBeenCalledWith("org/repo-a");
+  });
+});
+
+describe("getTriggerTargetKey()", () => {
+  it("uses the issue number for issue comment triggers", () => {
+    expect(getTriggerTargetKey(makeMatch(1, "org/repo"))).toBe("org/repo#1");
+  });
+
+  it("uses the PR number for pull request review comment triggers", () => {
+    expect(getTriggerTargetKey(makePrMatch(99, "org/repo"))).toBe("org/repo#7");
+  });
+});
+
+describe("RunConcurrencyGate", () => {
+  it("starts a batch when the target and global capacity are free", () => {
+    const gate = new RunConcurrencyGate<string>({ maxConcurrentRuns: 2 });
+    const batch = { targetKey: "owner/repo#1", items: ["a"] };
+
+    expect(gate.submit(batch)).toEqual({ status: "started", batch });
+    expect(gate.activeRunCount).toBe(1);
+    expect(gate.isTargetInFlight("owner/repo#1")).toBe(true);
+  });
+
+  it("queues a batch for a target that is already in flight", () => {
+    const gate = new RunConcurrencyGate<string>({ maxConcurrentRuns: 2 });
+    const first = { targetKey: "owner/repo#1", items: ["a"] };
+    const second = { targetKey: "owner/repo#1", items: ["b"] };
+
+    gate.submit(first);
+
+    expect(gate.submit(second)).toEqual({
+      status: "queued",
+      reason: "target-in-flight",
+      batch: second,
+    });
+    expect(gate.activeRunCount).toBe(1);
+    expect(gate.queuedBatchCount).toBe(1);
+  });
+
+  it("queues every new batch when the global cap is reached", () => {
+    const gate = new RunConcurrencyGate<string>({ maxConcurrentRuns: 1 });
+    const first = { targetKey: "owner/repo#1", items: ["a"] };
+    const second = { targetKey: "owner/repo#2", items: ["b"] };
+
+    gate.submit(first);
+
+    expect(gate.submit(second)).toEqual({
+      status: "queued",
+      reason: "global-capacity",
+      batch: second,
+    });
+    expect(gate.activeRunCount).toBe(1);
+    expect(gate.queuedBatchCount).toBe(1);
+  });
+
+  it("starts queued batches when a run completes", () => {
+    const gate = new RunConcurrencyGate<string>({ maxConcurrentRuns: 2 });
+    const first = { targetKey: "owner/repo#1", items: ["a"] };
+    const second = { targetKey: "owner/repo#1", items: ["b"] };
+    const third = { targetKey: "owner/repo#2", items: ["c"] };
+
+    gate.submit(first);
+    gate.submit(second);
+    gate.submit(third);
+
+    expect(gate.complete("owner/repo#1")).toEqual([second]);
+    expect(gate.activeRunCount).toBe(2);
+    expect(gate.queuedBatchCount).toBe(0);
+    expect(gate.isTargetInFlight("owner/repo#1")).toBe(true);
+    expect(gate.isTargetInFlight("owner/repo#2")).toBe(true);
+  });
+
+  it("ignores completion for a target that is not in flight", () => {
+    const gate = new RunConcurrencyGate<string>();
+
+    expect(gate.complete("owner/repo#1")).toEqual([]);
+    expect(gate.activeRunCount).toBe(0);
   });
 });

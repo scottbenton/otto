@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-003"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Maintain an in-memory Set<string> of currently active target keys (owner/repo#number). Before starting any run, check if the target is already in-flight — if so, queue the batch instead of starting immediately. Remove from the set when the run completes or fails. Enforce a global concurrency cap (default 3, configurable via config) using a simple counter — if at cap, queue all new batches regardless of target.",
   "id": "T-023",
   "order": 90,
   "phase": "p2",
-  "status": "open",
+  "status": "complete",
   "title": "inFlightTargets concurrency tracking and global cap",
   "type": "task"
 }
