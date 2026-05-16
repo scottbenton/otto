@@ -8,7 +8,7 @@
   "id": "T-015",
   "order": 10,
   "phase": "p2",
-  "status": "open",
+  "status": "inprogress",
   "title": "GitHub context hydration — issue and PR conversation comments",
   "type": "task"
 }
