@@ -9,10 +9,12 @@ type ParsedMarker = { runId: string; machineId: string; sourceKey: string };
 
 function parseMarker(body: string): ParsedMarker | null {
   const match = MARKER_RE.exec(body);
-  const runId = match?.[1];
-  const machineId = match?.[2];
-  const sourceKey = match?.[3];
-  if (runId === undefined || machineId === undefined || sourceKey === undefined) return null;
+  if (match === null) return null;
+
+  const [, runId, machineId, sourceKey] = match;
+  if (runId === undefined || machineId === undefined || sourceKey === undefined) {
+    return null;
+  }
   return { runId, machineId, sourceKey };
 }
 
@@ -47,6 +49,7 @@ export async function recoverStaleComments(
       stale.map(async (c) => {
         const parsed = parseMarker(c.body);
         if (parsed === null) return;
+
         await client.request(c.url, {
           method: "PATCH",
           body: {

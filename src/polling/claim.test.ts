@@ -167,7 +167,7 @@ describe("claimOrAbort()", () => {
 
     await claimOrAbort(client, trigger, MACHINE_ID);
 
-    const [url, opts] = (client.request as ReturnType<typeof vi.fn>).mock.calls[0] as [string, { method: string; body: { body: string } }];
+    const [url, opts] = requestMock(client).mock.calls[0] as [string, { method: string; body: { body: string } }];
     expect(url).toBe("https://api.github.com/repos/owner/repo/issues/1/comments");
     expect(opts.method).toBe("POST");
   });
@@ -178,7 +178,7 @@ describe("claimOrAbort()", () => {
 
     await claimOrAbort(client, trigger, MACHINE_ID);
 
-    const [url] = (client.request as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    const [url] = requestMock(client).mock.calls[0] as [string];
     expect(url).toBe("https://api.github.com/repos/owner/repo/pulls/2/comments/77/replies");
   });
 
@@ -188,7 +188,7 @@ describe("claimOrAbort()", () => {
 
     await claimOrAbort(client, trigger, MACHINE_ID);
 
-    const [, opts] = (client.request as ReturnType<typeof vi.fn>).mock.calls[0] as [string, { body: { body: string } }];
+    const [, opts] = requestMock(client).mock.calls[0] as [string, { body: { body: string } }];
     expect(opts.body.body).toContain("otto:v1 status");
     expect(opts.body.body).toContain(`source=issue_comment:5`);
     expect(opts.body.body).toContain(`machine=${MACHINE_ID}`);
@@ -245,9 +245,11 @@ describe("claimOrAbort()", () => {
     const calls = requestMock(client).mock.calls as [string, { method: string; body: { body: string } }][];
     expect(calls).toHaveLength(2);
     const patchCall = calls[1];
-    expect(patchCall?.[0]).toBe("https://api.github.com/repos/owner/repo/issues/comments/42");
-    expect(patchCall?.[1].method).toBe("PATCH");
-    expect(patchCall?.[1].body.body).toContain("aborted (duplicate claim)");
+    expect(patchCall).toBeDefined();
+    if (patchCall === undefined) return;
+    expect(patchCall[0]).toBe("https://api.github.com/repos/owner/repo/issues/comments/42");
+    expect(patchCall[1].method).toBe("PATCH");
+    expect(patchCall[1].body.body).toContain("aborted (duplicate claim)");
   });
 
   it("patches the correct PR review comment update URL when losing the race", async () => {

@@ -51,12 +51,12 @@ function makeClient(issueComments: IssueComment[] = [], prComments: PullRequestR
   } as unknown as GitHubClient;
 }
 
-function requestMock(client: GitHubClient): ReturnType<typeof vi.fn> {
-  return Reflect.get(client, "request") as ReturnType<typeof vi.fn>;
-}
-
 function paginateAllMock(client: GitHubClient): ReturnType<typeof vi.fn> {
   return Reflect.get(client, "paginateAll") as ReturnType<typeof vi.fn>;
+}
+
+function requestMock(client: GitHubClient): ReturnType<typeof vi.fn> {
+  return Reflect.get(client, "request") as ReturnType<typeof vi.fn>;
 }
 
 describe("recoverStaleComments()", () => {
