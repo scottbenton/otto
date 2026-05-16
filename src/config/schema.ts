@@ -8,21 +8,14 @@ const RunnerConfigSchema = z.object({
 });
 
 export const OttoConfigSchema = z.object({
-  otto: z
-    .object({
-      trigger: z.string().min(1).default("otto"),
-      pollIntervalSeconds: z.number().int().min(30).default(300),
-      debounceSeconds: z.number().int().min(0).default(60),
-      maxConcurrentRuns: z.number().int().min(1).default(3),
-    })
-    .default({
-      trigger: "otto",
-      pollIntervalSeconds: 300,
-      debounceSeconds: 60,
-      maxConcurrentRuns: 3,
-    }),
+  otto: z.object({
+    trigger: z.string().min(1).default("otto"),
+    pollIntervalSeconds: z.number().int().min(30).default(60),
+    debounceSeconds: z.number().int().min(0).default(60),
+    maxConcurrentRuns: z.number().int().min(1).default(3),
+  }),
   github: z.object({
-    tokenEnv: z.string().min(1).default("GITHUB_TOKEN"),
+    tokenEnvVar: z.string().min(1).default("GITHUB_TOKEN"),
     repos: z
       .array(z.string().regex(repoSlugPattern, "must be owner/repo format"))
       .min(1, "at least one repo is required"),

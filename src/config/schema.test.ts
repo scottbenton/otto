@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { OttoConfigSchema } from "./schema.js";
 
 const validConfig = {
+  otto: {},
   github: {
-    tokenEnv: "GITHUB_TOKEN",
+    tokenEnvVar: "GITHUB_TOKEN",
     repos: ["owner/repo"],
   },
   workspace: {
@@ -25,14 +26,14 @@ describe("OttoConfigSchema", () => {
       ...validConfig,
       otto: {
         trigger: "otto",
-        pollIntervalSeconds: 300,
-        debounceSeconds: 60,
-        maxConcurrentRuns: 3,
+        pollIntervalSeconds: 120,
+        debounceSeconds: 30,
+        maxConcurrentRuns: 2,
       },
     };
     const result = OttoConfigSchema.parse(config);
     expect(result.otto.trigger).toBe("otto");
-    expect(result.otto.pollIntervalSeconds).toBe(300);
+    expect(result.otto.pollIntervalSeconds).toBe(120);
     expect(result.github.repos).toEqual(["owner/repo"]);
     expect(result.agent.runners.claude).toEqual({
       type: "command",
@@ -40,27 +41,31 @@ describe("OttoConfigSchema", () => {
     });
   });
 
-  it("applies otto defaults when otto section is omitted", () => {
+  it("applies otto field defaults when otto section has no fields", () => {
     const result = OttoConfigSchema.parse(validConfig);
     expect(result.otto.trigger).toBe("otto");
-    expect(result.otto.pollIntervalSeconds).toBe(300);
+    expect(result.otto.pollIntervalSeconds).toBe(60);
     expect(result.otto.debounceSeconds).toBe(60);
     expect(result.otto.maxConcurrentRuns).toBe(3);
   });
 
-  it("applies otto field defaults when section is present but fields are missing", () => {
-    const result = OttoConfigSchema.parse({ ...validConfig, otto: {} });
-    expect(result.otto.trigger).toBe("otto");
-    expect(result.otto.pollIntervalSeconds).toBe(300);
+  it("rejects a missing otto section", () => {
+    expect(() =>
+      OttoConfigSchema.parse({
+        github: validConfig.github,
+        workspace: validConfig.workspace,
+        agent: validConfig.agent,
+      }),
+    ).toThrow();
   });
 
-  it("applies github.tokenEnv default", () => {
+  it("applies github.tokenEnvVar default", () => {
     const config = {
       ...validConfig,
       github: { repos: ["owner/repo"] },
     };
     const result = OttoConfigSchema.parse(config);
-    expect(result.github.tokenEnv).toBe("GITHUB_TOKEN");
+    expect(result.github.tokenEnvVar).toBe("GITHUB_TOKEN");
   });
 
   it("applies agent.timeoutSeconds default", () => {

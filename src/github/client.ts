@@ -9,6 +9,9 @@ import {
 
 const OTTO_VERSION = "0.1.0";
 
+// GitHub's stable REST API version (date-based identifier, not a year-old snapshot)
+const GITHUB_API_VERSION = "2022-11-28";
+
 type RequestOptions = {
   method?: string;
   params?: Record<string, string>;
@@ -23,7 +26,11 @@ function parseNextLink(linkHeader: string): string | undefined {
   return undefined;
 }
 
-function classifyError(status: number, headers: Headers, message: string): GitHubError | NetworkError {
+function classifyError(
+  status: number,
+  headers: Headers,
+  message: string,
+): GitHubError | NetworkError {
   if (status === 429) {
     const reset = headers.get("x-ratelimit-reset");
     const resetAt = reset !== null ? new Date(Number(reset) * 1000) : new Date();
@@ -58,6 +65,16 @@ function classifyError(status: number, headers: Headers, message: string): GitHu
   return new GitHubError(message, status);
 }
 
+async function extractErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string };
+    if (typeof body.message === "string") return body.message;
+  } catch {
+    // ignore parse failure
+  }
+  return `HTTP ${String(response.status)}`;
+}
+
 export class GitHubClient {
   readonly #token: string;
   readonly #baseUrl: string;
@@ -67,28 +84,32 @@ export class GitHubClient {
     this.#baseUrl = baseUrl;
   }
 
+  #buildHeaders(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.#token}`,
+      Accept: "application/vnd.github+json",
+      "User-Agent": `otto/${OTTO_VERSION}`,
+      "X-GitHub-Api-Version": GITHUB_API_VERSION,
+    };
+  }
+
+  #resolveUrl(path: string): URL {
+    return new URL(path.startsWith("http") ? path : `${this.#baseUrl}${path}`);
+  }
+
   async request<T>(path: string, options?: RequestOptions): Promise<T> {
-    const url = new URL(
-      path.startsWith("http") ? path : `${this.#baseUrl}${path}`,
-    );
+    const url = this.#resolveUrl(path);
     if (options?.params) {
       for (const [key, value] of Object.entries(options.params)) {
         url.searchParams.set(key, value);
       }
     }
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.#token}`,
-      Accept: "application/vnd.github+json",
-      "User-Agent": `otto/${OTTO_VERSION}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    };
-
     let response: Response;
     try {
       response = await fetch(url.toString(), {
         method: options?.method ?? "GET",
-        headers,
+        headers: this.#buildHeaders(),
         ...(options?.body !== undefined
           ? { body: JSON.stringify(options.body) }
           : {}),
@@ -98,13 +119,7 @@ export class GitHubClient {
     }
 
     if (!response.ok) {
-      let message = `HTTP ${String(response.status)}`;
-      try {
-        const body = (await response.json()) as { message?: string };
-        if (typeof body.message === "string") message = body.message;
-      } catch {
-        // ignore parse failure; use default message
-      }
+      const message = await extractErrorMessage(response);
       throw classifyError(response.status, response.headers, message);
     }
 
@@ -119,9 +134,7 @@ export class GitHubClient {
     let isFirst = true;
 
     while (nextUrl !== undefined) {
-      const url = new URL(
-        nextUrl.startsWith("http") ? nextUrl : `${this.#baseUrl}${nextUrl}`,
-      );
+      const url = this.#resolveUrl(nextUrl);
       if (isFirst && params) {
         for (const [key, value] of Object.entries(params)) {
           url.searchParams.set(key, value);
@@ -129,28 +142,15 @@ export class GitHubClient {
         isFirst = false;
       }
 
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${this.#token}`,
-        Accept: "application/vnd.github+json",
-        "User-Agent": `otto/${OTTO_VERSION}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-      };
-
       let response: Response;
       try {
-        response = await fetch(url.toString(), { headers });
+        response = await fetch(url.toString(), { headers: this.#buildHeaders() });
       } catch (err) {
         throw new NetworkError(`Network error: ${String(err)}`, { cause: err });
       }
 
       if (!response.ok) {
-        let message = `HTTP ${String(response.status)}`;
-        try {
-          const body = (await response.json()) as { message?: string };
-          if (typeof body.message === "string") message = body.message;
-        } catch {
-          // ignore
-        }
+        const message = await extractErrorMessage(response);
         throw classifyError(response.status, response.headers, message);
       }
 
@@ -160,8 +160,7 @@ export class GitHubClient {
       }
 
       const linkHeader = response.headers.get("link");
-      nextUrl =
-        linkHeader !== null ? parseNextLink(linkHeader) : undefined;
+      nextUrl = linkHeader !== null ? parseNextLink(linkHeader) : undefined;
     }
   }
 

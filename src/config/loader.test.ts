@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigError, loadConfig } from "./loader.js";
 
 const validYaml = `
+otto: {}
 github:
   repos:
     - owner/repo
@@ -35,10 +36,10 @@ describe("loadConfig", () => {
     expect(config.agent.default).toBe("claude");
   });
 
-  it("applies defaults when otto section is absent", async () => {
+  it("applies otto field defaults when otto section has no fields", async () => {
     const path = await writeTmp("otto-defaults.yaml", validYaml);
     const config = await loadConfig(path);
-    expect(config.otto.pollIntervalSeconds).toBe(300);
+    expect(config.otto.pollIntervalSeconds).toBe(60);
     expect(config.otto.debounceSeconds).toBe(60);
     expect(config.otto.maxConcurrentRuns).toBe(3);
   });
@@ -60,6 +61,7 @@ describe("loadConfig", () => {
 
   it("throws ConfigError on schema validation failure", async () => {
     const badYaml = `
+otto: {}
 github:
   repos: []
 workspace:
@@ -75,6 +77,7 @@ agent:
 
   it("throws ConfigError with a readable message on schema failure", async () => {
     const badYaml = `
+otto: {}
 github:
   repos: []
 workspace:
@@ -90,6 +93,7 @@ agent:
 
   it("expands tilde in reposDir and worktreesDir", async () => {
     const yaml = `
+otto: {}
 github:
   repos:
     - owner/repo
