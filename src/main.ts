@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { loadConfig } from "./config/index.js";
 import { createDaemon } from "./daemon.js";
+import { GitHubClient, resolveAuthenticatedUser } from "./github/index.js";
 import { acquireLock } from "./state/index.js";
 import { StateStore } from "./state/store.js";
 import { registerShutdown } from "./shutdown.js";
@@ -76,10 +77,23 @@ async function main(): Promise<void> {
   const state = await StateStore.load(stateDir);
   const releaseLock = await acquireLock(stateDir);
 
+  const token = process.env[config.github.tokenEnvVar];
+  if (token === undefined || token === "") {
+    process.stderr.write(
+      `Error: environment variable ${config.github.tokenEnvVar} is not set.\n`,
+    );
+    process.exitCode = 1;
+    await releaseLock();
+    return;
+  }
+
+  const github = new GitHubClient(token);
+  const authenticatedLogin = await resolveAuthenticatedUser(github);
+
   const repoCount = String(config.github.repos.length);
   const interval = String(config.otto.pollIntervalSeconds);
   process.stdout.write(
-    `Otto starting — machine ${state.machineId}, polling ${repoCount} repo(s) every ${interval}s\n`,
+    `Otto starting — authenticated as ${authenticatedLogin}, machine ${state.machineId}, polling ${repoCount} repo(s) every ${interval}s\n`,
   );
 
   const daemon = createDaemon({
