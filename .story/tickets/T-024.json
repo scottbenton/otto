@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-012"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Implement PATCH /repos/{owner}/{repo}/issues/comments/{id} to edit the status comment in place as the run progresses. Status transitions: running → completed (with branch/PR link), failed (with retry instructions), interrupted (on restart recovery), aborted (on duplicate claim). Never post a new comment — always edit the existing one. Failure messages must not include raw agent output, file paths, tokens, or anything that could leak secrets.",
   "id": "T-024",
   "order": 100,
   "phase": "p2",
-  "status": "open",
+  "status": "complete",
   "title": "Status comment lifecycle updates (running → completed/failed/interrupted)",
   "type": "task"
 }
