@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-025"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Manage git worktrees under worktreesDir. For each run: compute a deterministic worktree path from the target (e.g. worktreesDir/{owner}-{repo}-issue-123). If the worktree does not exist, run git worktree add <path> <branch>. If it already exists, reuse it. Expose worktree path and branch to the agent runner. Remove worktree entry from state on run completion (but do not delete the directory — that is operator cleanup).",
   "id": "T-026",
   "order": 20,
   "phase": "p3",
-  "status": "open",
+  "status": "complete",
   "title": "Worktree lifecycle (create, reuse, path management)",
   "type": "task"
 }
