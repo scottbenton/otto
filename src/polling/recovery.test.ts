@@ -51,11 +51,19 @@ function makeClient(issueComments: IssueComment[] = [], prComments: PullRequestR
   } as unknown as GitHubClient;
 }
 
+function paginateAllMock(client: GitHubClient): ReturnType<typeof vi.fn> {
+  return Reflect.get(client, "paginateAll") as ReturnType<typeof vi.fn>;
+}
+
+function requestMock(client: GitHubClient): ReturnType<typeof vi.fn> {
+  return Reflect.get(client, "request") as ReturnType<typeof vi.fn>;
+}
+
 describe("recoverStaleComments()", () => {
   it("does nothing when there are no comments", async () => {
     const client = makeClient();
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
-    expect(client.request).not.toHaveBeenCalled();
+    expect(requestMock(client)).not.toHaveBeenCalled();
   });
 
   it("patches a stale running issue comment from this machine", async () => {
@@ -64,8 +72,8 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.request).toHaveBeenCalledOnce();
-    const [url, opts] = (client.request as ReturnType<typeof vi.fn>).mock.calls[0] as [string, { method: string; body: { body: string } }];
+    expect(requestMock(client)).toHaveBeenCalledOnce();
+    const [url, opts] = requestMock(client).mock.calls[0] as [string, { method: string; body: { body: string } }];
     expect(url).toBe("https://api.github.com/repos/owner/repo/issues/comments/42");
     expect(opts.method).toBe("PATCH");
     expect(opts.body.body).toContain("Status: interrupted");
@@ -78,8 +86,8 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.request).toHaveBeenCalledOnce();
-    const [url] = (client.request as ReturnType<typeof vi.fn>).mock.calls[0] as [string];
+    expect(requestMock(client)).toHaveBeenCalledOnce();
+    const [url] = requestMock(client).mock.calls[0] as [string];
     expect(url).toBe("https://api.github.com/repos/owner/repo/pulls/comments/99");
   });
 
@@ -89,7 +97,7 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.request).not.toHaveBeenCalled();
+    expect(requestMock(client)).not.toHaveBeenCalled();
   });
 
   it("leaves comments not authored by the authenticated user untouched", async () => {
@@ -98,7 +106,7 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.request).not.toHaveBeenCalled();
+    expect(requestMock(client)).not.toHaveBeenCalled();
   });
 
   it("leaves comments with Status: running from this machine but not otto markers untouched", async () => {
@@ -107,7 +115,7 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.request).not.toHaveBeenCalled();
+    expect(requestMock(client)).not.toHaveBeenCalled();
   });
 
   it("does not patch comments that are already interrupted", async () => {
@@ -119,7 +127,7 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.request).not.toHaveBeenCalled();
+    expect(requestMock(client)).not.toHaveBeenCalled();
   });
 
   it("patches multiple stale comments in the same repo", async () => {
@@ -129,7 +137,7 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.request).toHaveBeenCalledTimes(2);
+    expect(requestMock(client)).toHaveBeenCalledTimes(2);
   });
 
   it("preserves the original run and source key in the patched body", async () => {
@@ -141,7 +149,7 @@ describe("recoverStaleComments()", () => {
 
     await recoverStaleComments(client, ["owner/repo"], MY_MACHINE, AUTH_USER);
 
-    const [, opts] = (client.request as ReturnType<typeof vi.fn>).mock.calls[0] as [string, { body: { body: string } }];
+    const [, opts] = requestMock(client).mock.calls[0] as [string, { body: { body: string } }];
     expect(opts.body.body).toContain("run=original-run");
     expect(opts.body.body).toContain("source=issue_comment:99");
   });
@@ -150,7 +158,7 @@ describe("recoverStaleComments()", () => {
     const client = makeClient();
     await recoverStaleComments(client, ["myorg/myrepo"], MY_MACHINE, AUTH_USER);
 
-    expect(client.paginateAll).toHaveBeenCalledWith("/repos/myorg/myrepo/issues/comments");
-    expect(client.paginateAll).toHaveBeenCalledWith("/repos/myorg/myrepo/pulls/comments");
+    expect(paginateAllMock(client)).toHaveBeenCalledWith("/repos/myorg/myrepo/issues/comments");
+    expect(paginateAllMock(client)).toHaveBeenCalledWith("/repos/myorg/myrepo/pulls/comments");
   });
 });

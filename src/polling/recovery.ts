@@ -9,13 +9,18 @@ type ParsedMarker = { runId: string; machineId: string; sourceKey: string };
 
 function parseMarker(body: string): ParsedMarker | null {
   const match = MARKER_RE.exec(body);
-  if (!match) return null;
-  return { runId: match[1]!, machineId: match[2]!, sourceKey: match[3]! };
+  if (match === null) return null;
+
+  const [, runId, machineId, sourceKey] = match;
+  if (runId === undefined || machineId === undefined || sourceKey === undefined) {
+    return null;
+  }
+  return { runId, machineId, sourceKey };
 }
 
 function isStaleRunningComment(comment: RawComment, machineId: string): boolean {
   const parsed = parseMarker(comment.body);
-  if (!parsed || parsed.machineId !== machineId) return false;
+  if (parsed?.machineId !== machineId) return false;
   return /\bStatus:\s*running\b/.test(comment.body);
 }
 
@@ -42,7 +47,9 @@ export async function recoverStaleComments(
 
     await Promise.all(
       stale.map(async (c) => {
-        const parsed = parseMarker(c.body)!;
+        const parsed = parseMarker(c.body);
+        if (parsed === null) return;
+
         await client.request(c.url, {
           method: "PATCH",
           body: {

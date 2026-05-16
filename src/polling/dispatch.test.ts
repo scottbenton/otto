@@ -12,6 +12,7 @@ function makeMatch(id: number, repo = "owner/repo"): TriggerMatch {
       user: { login: "alice" },
       created_at: "2024-01-01T00:00:00Z",
       updated_at: "2024-01-01T00:00:00Z",
+      url: `https://api.github.com/repos/owner/repo/issues/comments/${String(id)}`,
       html_url: `https://github.com/owner/repo/issues/1#issuecomment-${String(id)}`,
       issue_url: "https://api.github.com/repos/owner/repo/issues/1",
     },
