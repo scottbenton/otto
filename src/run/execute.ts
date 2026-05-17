@@ -67,10 +67,10 @@ async function updateAllClaims(
 ): Promise<void> {
   await Promise.allSettled(
     claims.map(({ comment, statusCommentId, identity }) => {
-      const perCommentSummary = result.commentSummaries?.[comment.id];
+      const summary = result.commentSummaries?.[comment.id] ?? (result.summary.length > 0 ? result.summary : undefined);
       const opts: Parameters<typeof completedStatus>[0] = { branchUrl };
       if (pullRequestUrl !== undefined) opts.pullRequestUrl = pullRequestUrl;
-      if (perCommentSummary !== undefined) opts.summary = perCommentSummary;
+      if (summary !== undefined) opts.summary = summary;
       return updateStatusComment(
         github,
         comment,
