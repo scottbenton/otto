@@ -93,27 +93,26 @@ export async function executeRun(
 
   // Attempt to claim each trigger comment. Skip any already owned by another instance.
   const claims: ClaimEntry[] = [];
+  let lastClaim: ClaimEntry | undefined;
   for (const item of batch.items) {
     const claim = await claimOrAbort(github, item.comment, machineId);
     if (!claim.claimed) continue;
-    claims.push({
+    lastClaim = {
       comment: item.comment,
       taskDescription: item.taskDescription,
       statusCommentId: claim.statusCommentId,
       identity: { runId: claim.runId, machineId, sourceKey: commentSourceKey(item.comment) },
-    });
+    };
+    claims.push(lastClaim);
   }
 
-  if (claims.length === 0) {
+  if (lastClaim === undefined) {
     runLog.info({}, "run skipped — all comments already claimed");
     onRunComplete(batch.targetKey);
     return;
   }
 
   runLog.info({ claimCount: claims.length }, "run claimed");
-
-  // Use the last claimed comment as the context anchor (most recent trigger we own).
-  const lastClaim = claims[claims.length - 1] as ClaimEntry;
 
   let worktreeAcquired = false;
   try {
