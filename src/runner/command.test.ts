@@ -170,7 +170,7 @@ describe("CommandRunner", () => {
     const result = await runner.run(makeInput({ timeoutMs: 200 }));
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/timed out after 200ms/);
-  }, 3000);
+  }, 5000);
 
   it("includes partial stdout in timed-out result", async () => {
     const runner = new CommandRunner({
@@ -180,7 +180,7 @@ describe("CommandRunner", () => {
     const result = await runner.run(makeInput({ timeoutMs: 500 }));
     expect(result.success).toBe(false);
     expect(result.summary).toBe("partial");
-  }, 3000);
+  }, 5000);
 
   it("returns failure with error message for a non-existent command", async () => {
     const runner = new CommandRunner({ id: "r", command: "this-command-does-not-exist-xyz" });

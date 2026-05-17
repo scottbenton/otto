@@ -66,6 +66,7 @@ export class CommandRunner implements AgentRunner {
       const child = spawn(this.#command, [], {
         shell: true,
         signal: controller.signal,
+        killSignal: "SIGKILL",
         env,
         stdio: ["ignore", "pipe", "inherit"],
       });
