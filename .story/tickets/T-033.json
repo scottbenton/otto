@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-005"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Build a lightweight HTTP server (using msw, nock, or a custom express app) that simulates the GitHub API endpoints Otto uses: GET /user, GET /repos/{owner}/{repo}/issues/comments, GET /repos/{owner}/{repo}/pulls/comments, GET /repos/{owner}/{repo}/issues/{number}, GET /repos/{owner}/{repo}/pulls/{number}, POST and PATCH /repos/{owner}/{repo}/issues/comments, GET /repos/{owner}/{repo}/issues/comments (thread fetch). Supports seeding fixture comments and recording which API calls were made.",
   "id": "T-033",
   "order": 10,
   "phase": "p4",
-  "status": "open",
+  "status": "complete",
   "title": "Fake GitHub API server for integration tests",
   "type": "task"
 }
