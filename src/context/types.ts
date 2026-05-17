@@ -69,7 +69,7 @@ export type PullRequestContext = {
   pullRequest: PullRequestDetails;
   reviews: PullRequestReview[];
   inlineThread: ThreadComment[];
-  lineComment?: PullRequestLineContext;
+  lineComments: PullRequestLineContext[];
 };
 
 export type HydratedContext = IssueContext | PullRequestContext;
@@ -86,5 +86,5 @@ export type HydratedGitHubContext = {
   reviews: PullRequestReview[];
   comments: ThreadComment[];
   truncated: boolean;
-  lineContext: PullRequestLineContext | null;
+  lineContexts: PullRequestLineContext[];
 };

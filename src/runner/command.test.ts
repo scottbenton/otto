@@ -23,7 +23,7 @@ function makeContext(): HydratedGitHubContext {
     reviews: [],
     comments: [],
     truncated: false,
-    lineContext: null,
+    lineContexts: [],
   };
 }
 

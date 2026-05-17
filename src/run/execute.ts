@@ -116,7 +116,7 @@ export async function executeRun(
 
   let worktreeAcquired = false;
   try {
-    const rawCtx = await hydrateContext(github, lastClaim.comment);
+    const rawCtx = await hydrateContext(github, claims.map((c) => c.comment));
     const ctx = normalizeContext(rawCtx);
 
     const taskDescription = buildTaskDescription(claims);

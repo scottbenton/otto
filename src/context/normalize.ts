@@ -12,11 +12,11 @@ export function normalizeContext(ctx: HydratedContext): HydratedGitHubContext {
       reviews: [],
       comments: ctx.comments,
       truncated: ctx.truncated,
-      lineContext: null,
+      lineContexts: [],
     };
   }
 
-  const sourceType = ctx.lineComment !== undefined ? "pr_line_comment" : "pr_conversation_comment";
+  const sourceType = ctx.lineComments.length > 0 ? "pr_line_comment" : "pr_conversation_comment";
   return {
     sourceType,
     owner: ctx.owner,
@@ -27,6 +27,6 @@ export function normalizeContext(ctx: HydratedContext): HydratedGitHubContext {
     reviews: ctx.reviews,
     comments: ctx.inlineThread,
     truncated: false,
-    lineContext: ctx.lineComment ?? null,
+    lineContexts: ctx.lineComments,
   };
 }
