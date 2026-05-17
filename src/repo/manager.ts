@@ -94,10 +94,10 @@ export class RepoManager {
 
     if (!(await pathIsDirectory(worktreePath, "Worktree"))) {
       await mkdir(this.#worktreesDir, { recursive: true });
-      await this.#gitRunner(["worktree", "add", worktreePath, input.branch], {
-        cwd: repo.path
-      });
+      await this.#addWorktree(repo.path, worktreePath, input.branch, repo.defaultBranch);
     }
+
+    await this.#assertCleanWorktree(worktreePath);
 
     await this.#stateStore.setWorktree(input.targetKey, {
       repo: input.slug,
@@ -115,6 +115,65 @@ export class RepoManager {
 
   async releaseWorktree(targetKey: string): Promise<void> {
     await this.#stateStore.removeWorktree(targetKey);
+  }
+
+  async #addWorktree(
+    repoPath: string,
+    worktreePath: string,
+    branch: string,
+    defaultBranch: string
+  ): Promise<void> {
+    const baseRef = `origin/${defaultBranch}`;
+
+    if (await this.#branchExists(repoPath, branch)) {
+      const unmergedCommits = await this.#countUnmergedCommits(repoPath, baseRef, branch);
+      if (unmergedCommits > 0) {
+        throw new RepoManagerError(
+          `Branch ${branch} already has unmerged commits; refusing to reset it`
+        );
+      }
+
+      await this.#gitRunner(["branch", "--force", branch, baseRef], { cwd: repoPath });
+      await this.#gitRunner(["worktree", "add", worktreePath, branch], { cwd: repoPath });
+      return;
+    }
+
+    await this.#gitRunner(["worktree", "add", "-b", branch, worktreePath, baseRef], {
+      cwd: repoPath
+    });
+  }
+
+  async #branchExists(repoPath: string, branch: string): Promise<boolean> {
+    const result = await this.#gitRunner(
+      ["branch", "--list", "--format=%(refname:short)", branch],
+      {
+        cwd: repoPath
+      }
+    );
+    return result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .includes(branch);
+  }
+
+  async #countUnmergedCommits(repoPath: string, baseRef: string, branch: string): Promise<number> {
+    const result = await this.#gitRunner(["rev-list", "--count", `${baseRef}..${branch}`], {
+      cwd: repoPath
+    });
+    const count = Number.parseInt(result.stdout.trim(), 10);
+    if (!Number.isFinite(count)) {
+      throw new RepoManagerError(`Unable to count unmerged commits on branch ${branch}`);
+    }
+    return count;
+  }
+
+  async #assertCleanWorktree(worktreePath: string): Promise<void> {
+    const result = await this.#gitRunner(["status", "--porcelain"], { cwd: worktreePath });
+    if (result.stdout.trim().length > 0) {
+      throw new RepoManagerError(
+        `Worktree has uncommitted changes from a previous run: ${worktreePath}`
+      );
+    }
   }
 
   async #getOrResolveDefaultBranch(slug: string, checkoutPath: string): Promise<string> {
