@@ -34,6 +34,13 @@ export class DebounceAccumulator {
     return this.#pending.has(targetKey);
   }
 
+  cancelForTarget(targetKey: string): void {
+    const entry = this.#pending.get(targetKey);
+    if (entry === undefined) return;
+    clearTimeout(entry.timer);
+    this.#pending.delete(targetKey);
+  }
+
   add(match: TriggerMatch): void {
     if (this.#signal?.aborted === true) return;
     const targetKey = getTriggerTargetKey(match);

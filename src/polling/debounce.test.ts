@@ -150,6 +150,48 @@ describe("DebounceAccumulator", () => {
     expect(batch.targetKey).toBe("myorg/myrepo#42");
   });
 
+  describe("cancelForTarget", () => {
+    it("removes the pending entry and prevents the batch from firing", () => {
+      const onBatchReady = vi.fn();
+      const acc = makeAccumulator(1000, onBatchReady);
+      acc.add(makeTrigger(1));
+      acc.cancelForTarget("owner/repo#1");
+      vi.advanceTimersByTime(2000);
+      expect(onBatchReady).not.toHaveBeenCalled();
+      expect(acc.hasPending("owner/repo#1")).toBe(false);
+      expect(acc.pendingCount).toBe(0);
+    });
+
+    it("is a no-op for unknown targetKey", () => {
+      const acc = makeAccumulator(1000, vi.fn());
+      expect(() => { acc.cancelForTarget("owner/repo#99"); }).not.toThrow();
+    });
+
+    it("only cancels the specified target, leaving others intact", () => {
+      const onBatchReady = vi.fn();
+      const acc = makeAccumulator(1000, onBatchReady);
+      acc.add(makeTrigger(1, 1));
+      acc.add(makeTrigger(2, 2));
+      acc.cancelForTarget("owner/repo#1");
+      vi.advanceTimersByTime(1000);
+      expect(onBatchReady).toHaveBeenCalledOnce();
+      const batch = (onBatchReady.mock.calls[0] as [DispatchBatch<TriggerMatch>])[0];
+      expect(batch.targetKey).toBe("owner/repo#2");
+    });
+
+    it("allows new triggers for the same target after cancellation", () => {
+      const onBatchReady = vi.fn();
+      const acc = makeAccumulator(1000, onBatchReady);
+      acc.add(makeTrigger(1));
+      acc.cancelForTarget("owner/repo#1");
+      acc.add(makeTrigger(2));
+      vi.advanceTimersByTime(1000);
+      expect(onBatchReady).toHaveBeenCalledOnce();
+      const batch = (onBatchReady.mock.calls[0] as [DispatchBatch<TriggerMatch>])[0];
+      expect(batch.items[0]).toEqual(makeTrigger(2));
+    });
+  });
+
   describe("abort signal", () => {
     it("cancels all pending timers when aborted", () => {
       const onBatchReady = vi.fn();
