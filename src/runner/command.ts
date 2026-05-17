@@ -43,10 +43,9 @@ export class CommandRunner implements AgentRunner {
 
   #spawnWithTimeout(input: AgentRunInput, contextFile: string): Promise<AgentRunResult> {
     return new Promise<AgentRunResult>((resolve) => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => { controller.abort(); }, input.timeoutMs);
-
       let settled = false;
+      let timedOut = false;
+
       const settle = (result: AgentRunResult): void => {
         if (settled) return;
         settled = true;
@@ -63,19 +62,32 @@ export class CommandRunner implements AgentRunner {
         OTTO_TIMEOUT_MS: String(input.timeoutMs),
       };
 
+      // detached: true places the shell and all its children in their own process
+      // group so we can kill them all atomically via process.kill(-pgid, 'SIGKILL').
+      // Without this, killing the shell alone leaves grandchildren holding the
+      // stdout pipe open, which prevents the 'close' event from firing.
       const child = spawn(this.#command, [], {
         shell: true,
-        signal: controller.signal,
-        killSignal: "SIGKILL",
+        detached: true,
         env,
         stdio: ["ignore", "pipe", "inherit"],
       });
 
+      const timer = setTimeout(() => {
+        timedOut = true;
+        if (child.pid !== undefined) {
+          try {
+            process.kill(-child.pid, "SIGKILL");
+          } catch {
+            // process group already exited
+          }
+        }
+      }, input.timeoutMs);
+
       const chunks: Buffer[] = [];
       child.stdout.on("data", (chunk: Buffer) => { chunks.push(chunk); });
 
-      child.on("error", (err: NodeJS.ErrnoException) => {
-        if (err.code === "ABORT_ERR") return; // resolved via close event
+      child.on("error", (err: Error) => {
         settle({ success: false, summary: "", error: err.message });
       });
 
@@ -83,7 +95,7 @@ export class CommandRunner implements AgentRunner {
         const raw = Buffer.concat(chunks).toString("utf-8");
         const summary = truncate(raw, STDOUT_TRUNCATE_CHARS);
 
-        if (controller.signal.aborted) {
+        if (timedOut) {
           settle({
             success: false,
             summary,
