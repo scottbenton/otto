@@ -1,4 +1,6 @@
 export { PollingLoop } from "./loop.js";
+export { DispatchOrchestrator } from "./orchestrator.js";
+export type { DispatchOrchestratorOptions } from "./orchestrator.js";
 export { filterUnseenTriggers, getTriggerTargetKey, RunConcurrencyGate } from "./dispatch.js";
 export { DebounceAccumulator } from "./debounce.js";
 export { pollRepo, runPollingTick } from "./poller.js";

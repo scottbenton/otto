@@ -142,7 +142,7 @@ describe("RunConcurrencyGate", () => {
     expect(gate.queuedBatchCount).toBe(1);
   });
 
-  it("starts queued batches when a run completes", () => {
+  it("returns eligible queued batches when a run completes without starting them", () => {
     const gate = new RunConcurrencyGate<string>({ maxConcurrentRuns: 2 });
     const first = { targetKey: "owner/repo#1", items: ["a"] };
     const second = { targetKey: "owner/repo#1", items: ["b"] };
@@ -153,9 +153,9 @@ describe("RunConcurrencyGate", () => {
     gate.submit(third);
 
     expect(gate.complete("owner/repo#1")).toEqual([second]);
-    expect(gate.activeRunCount).toBe(2);
+    expect(gate.activeRunCount).toBe(1);
     expect(gate.queuedBatchCount).toBe(0);
-    expect(gate.isTargetInFlight("owner/repo#1")).toBe(true);
+    expect(gate.isTargetInFlight("owner/repo#1")).toBe(false);
     expect(gate.isTargetInFlight("owner/repo#2")).toBe(true);
   });
 

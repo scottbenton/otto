@@ -83,7 +83,7 @@ export class RunConcurrencyGate<T> {
     }
 
     this.#activeRunCount--;
-    return this.#drainQueuedBatches();
+    return this.#pullEligible();
   }
 
   #start(targetKey: string): void {
@@ -91,8 +91,10 @@ export class RunConcurrencyGate<T> {
     this.#activeRunCount++;
   }
 
-  #drainQueuedBatches(): DispatchBatch<T>[] {
-    const started: DispatchBatch<T>[] = [];
+  // Removes and returns eligible queued batches without starting them.
+  // The caller is responsible for dispatching each returned batch via submit().
+  #pullEligible(): DispatchBatch<T>[] {
+    const eligible: DispatchBatch<T>[] = [];
 
     for (let i = 0; i < this.#queuedBatches.length;) {
       const batch = this.#queuedBatches[i];
@@ -101,7 +103,7 @@ export class RunConcurrencyGate<T> {
         continue;
       }
 
-      if (this.#activeRunCount >= this.#maxConcurrentRuns) {
+      if (this.#activeRunCount + eligible.length >= this.#maxConcurrentRuns) {
         break;
       }
 
@@ -111,11 +113,10 @@ export class RunConcurrencyGate<T> {
       }
 
       this.#queuedBatches.splice(i, 1);
-      this.#start(batch.targetKey);
-      started.push(batch);
+      eligible.push(batch);
     }
 
-    return started;
+    return eligible;
   }
 }
 
