@@ -6,18 +6,18 @@ const validConfig = {
   otto: {},
   github: {
     tokenEnvVar: "GITHUB_TOKEN",
-    repos: ["owner/repo"],
+    repos: ["owner/repo"]
   },
   workspace: {
     reposDir: "/home/user/repos",
-    worktreesDir: "/home/user/worktrees",
+    worktreesDir: "/home/user/worktrees"
   },
   agent: {
     default: "claude",
     runners: {
-      claude: { type: "command", command: "claude" },
-    },
-  },
+      claude: { type: "command", command: "claude" }
+    }
+  }
 };
 
 describe("OttoConfigSchema", () => {
@@ -28,8 +28,8 @@ describe("OttoConfigSchema", () => {
         trigger: "otto",
         pollIntervalSeconds: 120,
         debounceSeconds: 30,
-        maxConcurrentRuns: 2,
-      },
+        maxConcurrentRuns: 2
+      }
     };
     const result = OttoConfigSchema.parse(config);
     expect(result.otto.trigger).toBe("otto");
@@ -37,7 +37,7 @@ describe("OttoConfigSchema", () => {
     expect(result.github.repos).toEqual(["owner/repo"]);
     expect(result.agent.runners.claude).toEqual({
       type: "command",
-      command: "claude",
+      command: "claude"
     });
   });
 
@@ -54,15 +54,15 @@ describe("OttoConfigSchema", () => {
       OttoConfigSchema.parse({
         github: validConfig.github,
         workspace: validConfig.workspace,
-        agent: validConfig.agent,
-      }),
+        agent: validConfig.agent
+      })
     ).toThrow();
   });
 
   it("applies github.tokenEnvVar default", () => {
     const config = {
       ...validConfig,
-      github: { repos: ["owner/repo"] },
+      github: { repos: ["owner/repo"] }
     };
     const result = OttoConfigSchema.parse(config);
     expect(result.github.tokenEnvVar).toBe("GITHUB_TOKEN");
@@ -81,7 +81,7 @@ describe("OttoConfigSchema", () => {
   it("rejects malformed repo slug", () => {
     const config = {
       ...validConfig,
-      github: { repos: ["not-a-valid-slug"] },
+      github: { repos: ["not-a-valid-slug"] }
     };
     expect(() => OttoConfigSchema.parse(config)).toThrow();
   });
@@ -89,7 +89,7 @@ describe("OttoConfigSchema", () => {
   it("rejects repo slug with more than one slash", () => {
     const config = {
       ...validConfig,
-      github: { repos: ["owner/repo/extra"] },
+      github: { repos: ["owner/repo/extra"] }
     };
     expect(() => OttoConfigSchema.parse(config)).toThrow();
   });
@@ -97,7 +97,7 @@ describe("OttoConfigSchema", () => {
   it("rejects missing workspace.reposDir", () => {
     const config = {
       ...validConfig,
-      workspace: { worktreesDir: "/tmp/wt" },
+      workspace: { worktreesDir: "/tmp/wt" }
     };
     expect(() => OttoConfigSchema.parse(config)).toThrow();
   });
@@ -105,7 +105,7 @@ describe("OttoConfigSchema", () => {
   it("rejects missing workspace.worktreesDir", () => {
     const config = {
       ...validConfig,
-      workspace: { reposDir: "/tmp/repos" },
+      workspace: { reposDir: "/tmp/repos" }
     };
     expect(() => OttoConfigSchema.parse(config)).toThrow();
   });
@@ -113,7 +113,7 @@ describe("OttoConfigSchema", () => {
   it("rejects missing agent.default", () => {
     const config = {
       ...validConfig,
-      agent: { runners: { claude: { type: "command", command: "claude" } } },
+      agent: { runners: { claude: { type: "command", command: "claude" } } }
     };
     expect(() => OttoConfigSchema.parse(config)).toThrow();
   });
@@ -121,7 +121,7 @@ describe("OttoConfigSchema", () => {
   it("rejects pollIntervalSeconds below minimum", () => {
     const config = {
       ...validConfig,
-      otto: { pollIntervalSeconds: 5 },
+      otto: { pollIntervalSeconds: 5 }
     };
     expect(() => OttoConfigSchema.parse(config)).toThrow();
   });
@@ -129,7 +129,7 @@ describe("OttoConfigSchema", () => {
   it("rejects maxConcurrentRuns below minimum", () => {
     const config = {
       ...validConfig,
-      otto: { maxConcurrentRuns: 0 },
+      otto: { maxConcurrentRuns: 0 }
     };
     expect(() => OttoConfigSchema.parse(config)).toThrow();
   });
@@ -137,7 +137,7 @@ describe("OttoConfigSchema", () => {
   it("accepts multiple repos", () => {
     const config = {
       ...validConfig,
-      github: { repos: ["owner/repo1", "owner/repo2"] },
+      github: { repos: ["owner/repo1", "owner/repo2"] }
     };
     const result = OttoConfigSchema.parse(config);
     expect(result.github.repos).toHaveLength(2);
@@ -150,11 +150,54 @@ describe("OttoConfigSchema", () => {
         default: "claude",
         runners: {
           claude: { type: "command", command: "claude" },
-          codex: { type: "command", command: "codex" },
-        },
-      },
+          codex: { type: "command", command: "codex" }
+        }
+      }
     };
     const result = OttoConfigSchema.parse(config);
     expect(Object.keys(result.agent.runners)).toHaveLength(2);
+  });
+
+  it("accepts a claude runner and applies the default model", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "claude",
+        runners: {
+          claude: { type: "claude" }
+        }
+      }
+    };
+
+    const result = OttoConfigSchema.parse(config);
+
+    expect(result.agent.runners.claude).toEqual({
+      type: "claude",
+      model: "claude-opus-4-7"
+    });
+  });
+
+  it("accepts a claude runner with model and system prompt overrides", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "claude",
+        runners: {
+          claude: {
+            type: "claude",
+            model: "claude-sonnet-4-5",
+            systemPrompt: "custom prompt"
+          }
+        }
+      }
+    };
+
+    const result = OttoConfigSchema.parse(config);
+
+    expect(result.agent.runners.claude).toEqual({
+      type: "claude",
+      model: "claude-sonnet-4-5",
+      systemPrompt: "custom prompt"
+    });
   });
 });

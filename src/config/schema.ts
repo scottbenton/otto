@@ -2,33 +2,40 @@ import { z } from "zod";
 
 const repoSlugPattern = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
 
-const RunnerConfigSchema = z.object({
-  type: z.literal("command"),
-  command: z.string().min(1),
-});
+const RunnerConfigSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("command"),
+    command: z.string().min(1)
+  }),
+  z.object({
+    type: z.literal("claude"),
+    model: z.string().min(1).default("claude-opus-4-7"),
+    systemPrompt: z.string().min(1).optional()
+  })
+]);
 
 export const OttoConfigSchema = z.object({
   otto: z.object({
     trigger: z.string().min(1).default("otto"),
     pollIntervalSeconds: z.number().int().min(30).default(60),
     debounceSeconds: z.number().int().min(0).default(60),
-    maxConcurrentRuns: z.number().int().min(1).default(3),
+    maxConcurrentRuns: z.number().int().min(1).default(3)
   }),
   github: z.object({
     tokenEnvVar: z.string().min(1).default("GITHUB_TOKEN"),
     repos: z
       .array(z.string().regex(repoSlugPattern, "must be owner/repo format"))
-      .min(1, "at least one repo is required"),
+      .min(1, "at least one repo is required")
   }),
   workspace: z.object({
     reposDir: z.string().min(1),
-    worktreesDir: z.string().min(1),
+    worktreesDir: z.string().min(1)
   }),
   agent: z.object({
     default: z.string().min(1),
     timeoutSeconds: z.number().int().min(1).default(600),
-    runners: z.record(z.string(), RunnerConfigSchema),
-  }),
+    runners: z.record(z.string(), RunnerConfigSchema)
+  })
 });
 
 export type OttoConfig = z.infer<typeof OttoConfigSchema>;

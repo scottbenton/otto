@@ -1,12 +1,14 @@
 {
-  "blockedBy": ["T-028"],
-  "completedDate": null,
+  "blockedBy": [
+    "T-028"
+  ],
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "Add a built-in claude runner type so users don't need to write wrapper scripts. Extend RunnerConfigSchema with a new discriminated variant: type: 'claude', model (default: 'claude-opus-4-7'), optional systemPrompt override. Implement ClaudeRunner in src/runner/claude.ts implementing AgentRunner.\n\nThe runner renders a prompt from AgentRunInput: task description, issue/PR title and body, relevant comment thread, and git instructions (repo checked out at OTTO_REPO_PATH, commit your changes, one branch only). Calls: claude -p \"<rendered prompt>\" --output-format json --model <model> with OTTO_REPO_PATH as cwd. Parse the JSON output to extract the result text as the summary.\n\nShip a default system prompt that instructs Claude to: implement the requested change, commit with a clear message, print a brief plain-text summary of what was done (suitable for posting publicly — no secrets, no paths). The default prompt lives in src/runner/claude-prompt.ts and can be overridden per-runner in config.\n\nUpdate config schema, loader, and the runner factory so 'type: claude' instantiates ClaudeRunner instead of CommandRunner.",
   "id": "T-043",
   "order": 110,
   "phase": "p3",
-  "status": "open",
+  "status": "complete",
   "title": "Built-in Claude CLI runner with prompt template",
   "type": "task"
 }
