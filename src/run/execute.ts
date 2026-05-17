@@ -8,7 +8,6 @@ import type { OttoLogger } from "../logger.js";
 import { claimOrAbort, commentSourceKey } from "../polling/claim.js";
 import type { DispatchBatch } from "../polling/dispatch.js";
 import {
-  abortedDuplicateClaimStatus,
   completedStatus,
   failedStatus,
   updateStatusComment,
@@ -30,6 +29,7 @@ export type ExecuteRunDeps = {
 
 type ClaimEntry = {
   comment: RawComment;
+  taskDescription: string;
   statusCommentId: number;
   identity: { runId: string; machineId: string; sourceKey: string };
 };
@@ -39,23 +39,9 @@ function deriveBranch(targetKey: string, batchRunId: string): string {
   return `otto/${safe}-${batchRunId.slice(0, 8)}`;
 }
 
-function buildTaskDescription(items: TriggerMatch[]): string {
-  if (items.length === 1) {
-    const first = items[0];
-    return first !== undefined ? first.taskDescription : "";
-  }
-  return items.map((item, i) => `${String(i + 1)}. ${item.taskDescription}`).join("\n\n");
-}
-
-async function rollbackClaims(
-  github: GitHubClient,
-  claims: ClaimEntry[],
-): Promise<void> {
-  await Promise.allSettled(
-    claims.map(({ comment, statusCommentId, identity }) =>
-      updateStatusComment(github, comment, statusCommentId, identity, abortedDuplicateClaimStatus()),
-    ),
-  );
+function buildTaskDescription(claims: ClaimEntry[]): string {
+  if (claims.length === 1) return claims[0]?.taskDescription ?? "";
+  return claims.map((c, i) => `${String(i + 1)}. ${c.taskDescription}`).join("\n\n");
 }
 
 async function updateAllClaims(
@@ -71,13 +57,7 @@ async function updateAllClaims(
       const opts: Parameters<typeof completedStatus>[0] = { branchUrl };
       if (pullRequestUrl !== undefined) opts.pullRequestUrl = pullRequestUrl;
       if (summary !== undefined) opts.summary = summary;
-      return updateStatusComment(
-        github,
-        comment,
-        statusCommentId,
-        identity,
-        completedStatus(opts),
-      );
+      return updateStatusComment(github, comment, statusCommentId, identity, completedStatus(opts));
     }),
   );
 }
@@ -101,43 +81,46 @@ export async function executeRun(
 ): Promise<void> {
   const { github, machineId, repoManager, agentRunner, timeoutMs, onRunComplete, logger } = deps;
 
-  const lastTrigger = batch.items[batch.items.length - 1];
-  if (lastTrigger === undefined) {
+  const firstItem = batch.items[0];
+  if (firstItem === undefined) {
     onRunComplete(batch.targetKey);
     return;
   }
 
-  const { repo } = lastTrigger;
+  const { repo } = firstItem;
   const batchRunId = randomUUID();
   const runLog = logger.child({ targetKey: batch.targetKey, repo, batchRunId });
 
-  // Claim every trigger comment. If any claim fails, roll back previous claims and bail —
-  // another instance already owns this batch.
+  // Attempt to claim each trigger comment. Skip any already owned by another instance.
   const claims: ClaimEntry[] = [];
   for (const item of batch.items) {
     const claim = await claimOrAbort(github, item.comment, machineId);
-    if (!claim.claimed) {
-      await rollbackClaims(github, claims);
-      runLog.info({}, "run skipped — already claimed");
-      onRunComplete(batch.targetKey);
-      return;
-    }
+    if (!claim.claimed) continue;
     claims.push({
       comment: item.comment,
+      taskDescription: item.taskDescription,
       statusCommentId: claim.statusCommentId,
       identity: { runId: claim.runId, machineId, sourceKey: commentSourceKey(item.comment) },
     });
   }
 
+  if (claims.length === 0) {
+    runLog.info({}, "run skipped — all comments already claimed");
+    onRunComplete(batch.targetKey);
+    return;
+  }
+
   runLog.info({ claimCount: claims.length }, "run claimed");
+
+  // Use the last claimed comment as the context anchor (most recent trigger we own).
+  const lastClaim = claims[claims.length - 1] as ClaimEntry;
 
   let worktreeAcquired = false;
   try {
-    // Hydrate context from the most recent trigger comment.
-    const rawCtx = await hydrateContext(github, lastTrigger.comment);
+    const rawCtx = await hydrateContext(github, lastClaim.comment);
     const ctx = normalizeContext(rawCtx);
 
-    const taskDescription = buildTaskDescription(batch.items);
+    const taskDescription = buildTaskDescription(claims);
     const branch = deriveBranch(batch.targetKey, batchRunId);
 
     const worktree = await repoManager.prepareWorktree({
