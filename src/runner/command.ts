@@ -1,0 +1,111 @@
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import type { AgentRunInput, AgentRunResult, AgentRunner, RunnerCapabilities } from "./types.js";
+
+const STDOUT_TRUNCATE_CHARS = 500;
+
+export type CommandRunnerOptions = {
+  id: string;
+  command: string;
+  capabilities?: Partial<RunnerCapabilities>;
+};
+
+const DEFAULT_CAPABILITIES: RunnerCapabilities = {
+  canEdit: true,
+  canRunShell: true,
+  supportsStructuredOutput: false,
+};
+
+export class CommandRunner implements AgentRunner {
+  readonly id: string;
+  readonly capabilities: RunnerCapabilities;
+  readonly #command: string;
+
+  constructor(opts: CommandRunnerOptions) {
+    this.id = opts.id;
+    this.#command = opts.command;
+    this.capabilities = { ...DEFAULT_CAPABILITIES, ...opts.capabilities };
+  }
+
+  async run(input: AgentRunInput): Promise<AgentRunResult> {
+    const contextFile = join(tmpdir(), `otto-context-${randomUUID()}.json`);
+    try {
+      await writeFile(contextFile, JSON.stringify(input.context), "utf-8");
+      return await this.#spawnWithTimeout(input, contextFile);
+    } finally {
+      await rm(contextFile, { force: true });
+    }
+  }
+
+  #spawnWithTimeout(input: AgentRunInput, contextFile: string): Promise<AgentRunResult> {
+    return new Promise<AgentRunResult>((resolve) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => { controller.abort(); }, input.timeoutMs);
+
+      let settled = false;
+      const settle = (result: AgentRunResult): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      };
+
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        OTTO_TASK: input.task,
+        OTTO_CONTEXT_FILE: contextFile,
+        OTTO_REPO_PATH: input.repoPaths[0] ?? "",
+        OTTO_REPO_PATHS: input.repoPaths.join(":"),
+        OTTO_TIMEOUT_MS: String(input.timeoutMs),
+      };
+
+      const child = spawn(this.#command, [], {
+        shell: true,
+        signal: controller.signal,
+        env,
+        stdio: ["ignore", "pipe", "inherit"],
+      });
+
+      const chunks: Buffer[] = [];
+      child.stdout?.on("data", (chunk: Buffer) => { chunks.push(chunk); });
+
+      child.on("error", (err: NodeJS.ErrnoException) => {
+        if (err.code === "ABORT_ERR") return; // resolved via close event
+        settle({ success: false, summary: "", error: err.message });
+      });
+
+      child.on("close", (code) => {
+        const raw = Buffer.concat(chunks).toString("utf-8");
+        const summary = truncate(raw, STDOUT_TRUNCATE_CHARS);
+
+        if (controller.signal.aborted) {
+          settle({
+            success: false,
+            summary,
+            error: `process timed out after ${input.timeoutMs}ms`,
+          });
+          return;
+        }
+
+        if (code !== 0) {
+          settle({
+            success: false,
+            summary,
+            error: `process exited with code ${String(code)}`,
+          });
+          return;
+        }
+
+        settle({ success: true, summary });
+      });
+    });
+  }
+}
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max) + "…" : text;
+}
