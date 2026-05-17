@@ -1,0 +1,12 @@
+{
+  "blockedBy": ["T-028"],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "Add a built-in codex runner type. Extend RunnerConfigSchema with: type: 'codex', optional model override. Implement CodexRunner in src/runner/codex.ts implementing AgentRunner.\n\nCodex CLI is invoked as: codex \"<rendered prompt>\" with the repo as cwd and OPENAI_API_KEY (or configurable env var) in the environment. Use the same prompt rendering approach as the Claude runner (task + context + git instructions) but drop --output-format json since Codex CLI outputs plain text. Capture stdout as the summary (truncated to 500 chars).\n\nConfig env var for the API key should be configurable (default: OPENAI_API_KEY). Update config schema, loader, and runner factory. Share the prompt rendering logic with T-043 — extract it into src/runner/prompt.ts so both runners use the same context-to-prompt function.",
+  "id": "T-044",
+  "order": 120,
+  "phase": "p3",
+  "status": "open",
+  "title": "Built-in Codex runner",
+  "type": "task"
+}

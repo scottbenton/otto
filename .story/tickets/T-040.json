@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-031"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "When Otto opens a PR for an implement_issue task, the current body is just `Closes #N`. Enrich it by asking Claude (via a short Anthropic API call) to generate a structured PR description from the agent run output.\n\nThe call should receive: the issue title, the issue body, and the agent's summary output (AgentRunResult.summary). Claude should return a markdown PR body with sections like:\n\n- What was done (2-4 sentences)\n- Key changes (bullet list of files/approach)\n- Testing notes (if any)\n- Closes #N (always last)\n\nThe Anthropic API call should use a small/fast model (Haiku), be fire-and-forget with a short timeout (e.g. 15s), and fall back to the plain `Closes #N` body if it fails or times out. This keeps PR creation non-blocking even when the API is slow.\n\ncreatePrForIssueTask (src/github/pulls.ts) should accept an optional `agentSummary` field. When provided, it passes it plus the issue details to a new `generatePrBody(input)` helper that calls the Anthropic API. The helper lives in src/github/pr-body.ts and is independently testable.",
+  "id": "T-040",
+  "order": 90,
+  "phase": "p3",
+  "status": "open",
+  "title": "AI-generated PR body summarizing agent work",
+  "type": "task"
+}

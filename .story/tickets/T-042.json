@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "After a run completes or fails, optionally send a push notification to the operator. Configurable in otto.yaml under a new `notifications` block. Support at least one backend on launch: ntfy (self-hosted or ntfy.sh) via a simple POST with the run summary and outcome. The config should specify a URL and optional topic/token. Notification is fire-and-forget with a short timeout (5s) — failure to notify must never block or fail the run. Include success and failure message templates that include the repo, issue/PR number, and branch or error reason.",
+  "id": "T-042",
+  "order": 100,
+  "phase": "p4",
+  "status": "open",
+  "title": "Configurable push notifications on run completion and failure",
+  "type": "task"
+}

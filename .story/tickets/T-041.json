@@ -1,0 +1,21 @@
+{
+  "blockedBy": [
+    "T-025",
+    "T-026",
+    "T-027",
+    "T-028",
+    "T-029",
+    "T-030",
+    "T-031",
+    "T-032"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-16",
+  "description": "All execution-phase modules exist in isolation but nothing connects them. Write src/run/execute.ts with an executeRun(batch, deps) function that sequences: claimOrAbort → hydrateContext → normalizeContext → RepoManager.prepareWorktree → AgentRunner.run → RepoManager.pushBranch → createPrForIssueTask (if sourceType === issue_comment) → updateStatusComment (completed or failed). Wire it into main.ts by instantiating RepoManager (reposDir/worktreesDir from config or state dir), CommandRunner (agent command from config), and DispatchOrchestrator, and passing executeRun as the onRunReady callback. The orchestrator handles debounce and concurrency; execute.ts handles the single-run lifecycle. After this ticket Otto should be runnable end-to-end.",
+  "id": "T-041",
+  "order": 90,
+  "phase": "p3",
+  "status": "open",
+  "title": "Run executor — wire trigger through to agent run and status update",
+  "type": "task"
+}
