@@ -71,7 +71,7 @@ export class CommandRunner implements AgentRunner {
       });
 
       const chunks: Buffer[] = [];
-      child.stdout?.on("data", (chunk: Buffer) => { chunks.push(chunk); });
+      child.stdout.on("data", (chunk: Buffer) => { chunks.push(chunk); });
 
       child.on("error", (err: NodeJS.ErrnoException) => {
         if (err.code === "ABORT_ERR") return; // resolved via close event
@@ -86,7 +86,7 @@ export class CommandRunner implements AgentRunner {
           settle({
             success: false,
             summary,
-            error: `process timed out after ${input.timeoutMs}ms`,
+            error: `process timed out after ${input.timeoutMs.toString()}ms`,
           });
           return;
         }

@@ -135,38 +135,29 @@ describe("CommandRunner", () => {
   });
 
   it("writes valid JSON context to OTTO_CONTEXT_FILE", async () => {
-    let capturedPath = "";
     const runner = new CommandRunner({
       id: "r",
       command: "node -e \"process.stdout.write(process.env.OTTO_CONTEXT_FILE)\"",
     });
     const result = await runner.run(makeInput());
-    capturedPath = result.summary;
-
-    // The temp file is cleaned up after run — verify the path looked like our temp file
-    expect(capturedPath).toMatch(/otto-context-[0-9a-f-]+\.json$/);
+    expect(result.summary).toMatch(/otto-context-[0-9a-f-]+\.json$/);
   });
 
   it("cleans up the context temp file after a successful run", async () => {
-    let contextPath = "";
     const capture = new CommandRunner({
       id: "capture",
       command: "node -e \"process.stdout.write(process.env.OTTO_CONTEXT_FILE)\"",
     });
-    const result = await capture.run(makeInput());
-    contextPath = result.summary;
-
+    const { summary: contextPath } = await capture.run(makeInput());
     await expect(readFile(contextPath)).rejects.toThrow();
   });
 
   it("cleans up the context temp file after a failed run", async () => {
-    let contextPath = "";
     const capture = new CommandRunner({
       id: "capture",
       command: "node -e \"process.stdout.write(process.env.OTTO_CONTEXT_FILE); process.exit(1)\"",
     });
-    const result = await capture.run(makeInput());
-    contextPath = result.summary;
+    const { summary: contextPath } = await capture.run(makeInput());
 
     await expect(readFile(contextPath)).rejects.toThrow();
   });
