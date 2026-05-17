@@ -10,11 +10,15 @@ const repoSlugPattern = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
 
 export type GitRunnerOptions = {
   cwd?: string;
+  /** When true, return stdout/stderr/exitCode instead of throwing on non-zero exit. */
+  allowNonZeroExit?: boolean;
 };
 
 export type GitRunnerResult = {
   stdout: string;
   stderr: string;
+  /** Set only when allowNonZeroExit:true and the process exited non-zero. */
+  exitCode?: number;
 };
 
 export type GitRunner = (args: string[], options?: GitRunnerOptions) => Promise<GitRunnerResult>;
@@ -48,6 +52,26 @@ export class RepoManagerError extends Error {
     this.name = "RepoManagerError";
   }
 }
+
+export class NonFastForwardError extends RepoManagerError {
+  constructor(message: string) {
+    super(message);
+    this.name = "NonFastForwardError";
+  }
+}
+
+export type PushBranchInput = {
+  /** Path to the bare/primary repo clone (where git push runs). */
+  repoPath: string;
+  /** Path to the git worktree checked out on `branch` (where git log runs). */
+  worktreePath: string;
+  branch: string;
+};
+
+export type PushBranchResult = {
+  branch: string;
+  commits: string[];
+};
 
 type RepoManagerOptions = {
   reposDir: string;
@@ -115,6 +139,64 @@ export class RepoManager {
 
   async releaseWorktree(targetKey: string): Promise<void> {
     await this.#stateStore.removeWorktree(targetKey);
+  }
+
+  async pushBranch(input: PushBranchInput): Promise<PushBranchResult> {
+    const commits = await this.#getPushableCommits(input.worktreePath, input.branch);
+
+    const pushResult = await this.#gitRunner(
+      ["push", "--porcelain", "origin", input.branch],
+      { cwd: input.repoPath, allowNonZeroExit: true }
+    );
+
+    // Porcelain rejection lines: start with '!' and contain '[rejected]' + 'non-fast-forward'.
+    // Check stdout only to avoid false positives from hook messages in stderr.
+    const isRejected = pushResult.stdout
+      .split("\n")
+      .some(
+        (line) =>
+          line.startsWith("!") &&
+          line.includes("[rejected]") &&
+          line.includes("non-fast-forward")
+      );
+
+    if (isRejected) {
+      throw new NonFastForwardError(
+        `Push rejected (non-fast-forward) for branch ${input.branch}; refusing to force-push`
+      );
+    }
+
+    if ((pushResult.exitCode ?? 0) !== 0) {
+      const errorDetail = [pushResult.stdout, pushResult.stderr]
+        .filter(Boolean)
+        .join("\n")
+        .trim();
+      throw new RepoManagerError(
+        `git push failed for branch ${input.branch}: ${errorDetail}`
+      );
+    }
+
+    return { branch: input.branch, commits };
+  }
+
+  async #getPushableCommits(worktreePath: string, branch: string): Promise<string[]> {
+    // Use allowNonZeroExit so a missing remote-tracking branch (exit 128) is handled
+    // without swallowing unrelated errors via a catch-all.
+    const logResult = await this.#gitRunner(
+      ["log", "--format=%H", `origin/${branch}..HEAD`],
+      { cwd: worktreePath, allowNonZeroExit: true }
+    );
+
+    if ((logResult.exitCode ?? 0) === 0) {
+      return logResult.stdout
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    // Remote tracking branch doesn't exist yet (new branch push) — return HEAD commit.
+    const headResult = await this.#gitRunner(["rev-parse", "HEAD"], { cwd: worktreePath });
+    return [headResult.stdout.trim()].filter(Boolean);
   }
 
   async #addWorktree(
@@ -246,10 +328,23 @@ async function runGit(args: string[], options: GitRunnerOptions = {}): Promise<G
       encoding: "utf8"
     });
   } catch (err) {
+    if (options.allowNonZeroExit && isExecError(err)) {
+      return {
+        stdout: err.stdout ?? "",
+        stderr: err.stderr ?? "",
+        exitCode: typeof err.code === "number" ? err.code : 1,
+      };
+    }
     throw new RepoManagerError(`Git command failed: git ${args.join(" ")}`, {
       cause: err
     });
   }
+}
+
+type ExecError = { stdout?: string; stderr?: string; code?: number | string };
+
+function isExecError(err: unknown): err is ExecError {
+  return err instanceof Error && ("stdout" in err || "stderr" in err);
 }
 
 function defaultCloneUrl(slug: string): string {

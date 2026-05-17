@@ -4,12 +4,21 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { StateStore } from "../state/store.js";
-import { RepoManager, RepoManagerError, type GitRunner, type GitRunnerOptions } from "./manager.js";
+import {
+  NonFastForwardError,
+  RepoManager,
+  RepoManagerError,
+  type GitRunner,
+  type GitRunnerOptions,
+  type GitRunnerResult,
+} from "./manager.js";
 
 type GitCall = {
   args: string[];
   options: GitRunnerOptions;
 };
+
+type RunnerOutput = string | Partial<GitRunnerResult>;
 
 let rootDir: string;
 let reposDir: string;
@@ -23,6 +32,17 @@ function createRunner(outputs: string[] = []): GitRunner {
     calls.push({ args, options });
     const stdout = outputs.shift() ?? "";
     return Promise.resolve({ stdout, stderr: "" });
+  };
+}
+
+function createAdvancedRunner(outputs: RunnerOutput[] = []): GitRunner {
+  return (args, options = {}) => {
+    calls.push({ args, options });
+    const output = outputs.shift() ?? "";
+    if (typeof output === "string") {
+      return Promise.resolve({ stdout: output, stderr: "" });
+    }
+    return Promise.resolve({ stdout: output.stdout ?? "", stderr: output.stderr ?? "", exitCode: output.exitCode });
   };
 }
 
@@ -422,5 +442,111 @@ describe("RepoManager.prepareRepository()", () => {
       RepoManagerError
     );
     expect(calls).toEqual([]);
+  });
+});
+
+describe("RepoManager.pushBranch()", () => {
+  const repoPath = "/fake/repo";
+  const worktreePath = "/fake/worktree";
+  const branch = "otto/owner-repo-123";
+
+  it("returns branch and commits when push succeeds and remote tracking exists", async () => {
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        // git log origin/branch..HEAD
+        "abc123\ndef456\n",
+        // git push --porcelain origin branch
+        { stdout: " \trefs/heads/otto/owner-repo-123:refs/heads/otto/owner-repo-123\tabc..def\n", stderr: "" },
+      ]),
+    });
+
+    const result = await manager.pushBranch({ repoPath, worktreePath, branch });
+
+    expect(result).toEqual({ branch, commits: ["abc123", "def456"] });
+  });
+
+  it("falls back to HEAD commit when remote tracking branch does not exist", async () => {
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        // git log origin/branch..HEAD — remote branch missing (exit 128)
+        { stdout: "", stderr: "fatal: ambiguous argument 'origin/otto/owner-repo-123..HEAD'", exitCode: 128 },
+        // git rev-parse HEAD
+        "abc123\n",
+        // git push --porcelain origin branch
+        { stdout: "*\trefs/heads/otto/owner-repo-123:refs/heads/otto/owner-repo-123\t[new branch]\n", stderr: "" },
+      ]),
+    });
+
+    const result = await manager.pushBranch({ repoPath, worktreePath, branch });
+
+    expect(result).toEqual({ branch, commits: ["abc123"] });
+  });
+
+  it("throws NonFastForwardError when push is rejected with non-fast-forward", async () => {
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        // git log origin/branch..HEAD
+        "abc123\n",
+        // git push — rejected
+        {
+          stdout: "!\trefs/heads/otto/owner-repo-123:refs/heads/otto/owner-repo-123\t[rejected] (non-fast-forward)\n",
+          stderr: "",
+          exitCode: 1,
+        },
+      ]),
+    });
+
+    await expect(manager.pushBranch({ repoPath, worktreePath, branch })).rejects.toThrow(
+      NonFastForwardError
+    );
+  });
+
+  it("throws RepoManagerError (not NonFastForwardError) on other push failures", async () => {
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        // git log origin/branch..HEAD
+        "abc123\n",
+        // git push — generic failure (no [rejected] text)
+        { stdout: "", stderr: "fatal: unable to connect to remote", exitCode: 128 },
+      ]),
+    });
+
+    let caughtError: unknown;
+    try {
+      await manager.pushBranch({ repoPath, worktreePath, branch });
+    } catch (e) {
+      caughtError = e;
+    }
+    expect(caughtError).toBeInstanceOf(RepoManagerError);
+    expect(caughtError).not.toBeInstanceOf(NonFastForwardError);
+  });
+
+  it("runs git push with repoPath as cwd, not worktreePath", async () => {
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        "abc123\n",
+        { stdout: " \trefs/heads/otto/owner-repo-123:refs/heads/otto/owner-repo-123\tabc..def\n", stderr: "" },
+      ]),
+    });
+
+    await manager.pushBranch({ repoPath, worktreePath, branch });
+
+    const pushCall = calls.find((c) => c.args[0] === "push");
+    expect(pushCall?.options.cwd).toBe(repoPath);
   });
 });
