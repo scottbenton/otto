@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-029"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "On run failure (agent error, timeout, push rejection, worktree assertion failure), patch the status comment to Status: failed with a short user-facing summary (no secrets, no raw logs) and the retry instruction ('To retry, post a new comment: otto retry'). The agent prompt instructs the agent to return only a short summary suitable for public posting. Otto truncates any runner output to 500 characters before including it.",
   "id": "T-032",
   "order": 80,
   "phase": "p3",
-  "status": "open",
+  "status": "complete",
   "title": "Failure reporting and retry instructions in status comments",
   "type": "task"
 }
