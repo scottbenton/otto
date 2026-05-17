@@ -18,7 +18,7 @@ export type FailedStatusReason = "runner-failed" | "timeout" | "push-failed" | "
 export type StatusTransition =
   | { status: "running" }
   | { status: "completed"; branchUrl: string; pullRequestUrl?: string }
-  | { status: "failed"; reason?: FailedStatusReason }
+  | { status: "failed"; reason?: FailedStatusReason; summary?: string }
   | { status: "interrupted" }
   | { status: "aborted"; reason: "duplicate-claim" };
 
@@ -74,8 +74,11 @@ export function completedStatus(options: CompletedStatusOptions): StatusTransiti
   return transition;
 }
 
-export function failedStatus(reason: FailedStatusReason = "unknown"): StatusTransition {
-  return { status: "failed", reason };
+export function failedStatus(
+  reason: FailedStatusReason = "unknown",
+  summary?: string,
+): StatusTransition {
+  return { status: "failed", reason, ...(summary !== undefined ? { summary } : {}) };
 }
 
 export function interruptedStatus(): StatusTransition {
@@ -93,13 +96,16 @@ function statusContent(transition: StatusTransition): string {
     case "completed":
       return completedContent(transition);
     case "failed":
-      return failedContent(transition.reason ?? "unknown");
+      return failedContent(transition);
     case "interrupted":
       return "Status: interrupted - daemon restarted. Remove this comment and re-trigger to retry.";
     case "aborted":
       return "Status: aborted (duplicate claim)";
   }
 }
+
+const SUMMARY_MAX_LENGTH = 500;
+const RETRY_INSTRUCTION = "To retry, post a new comment: otto retry";
 
 function completedContent(transition: Extract<StatusTransition, { status: "completed" }>): string {
   const lines = ["Status: completed", "", `Branch: ${transition.branchUrl}`];
@@ -109,14 +115,20 @@ function completedContent(transition: Extract<StatusTransition, { status: "compl
   return lines.join("\n");
 }
 
-function failedContent(reason: FailedStatusReason): string {
-  const detail = failureDetail(reason);
-  return [
-    "Status: failed",
-    "",
-    detail,
-    "Retry: fix the reported condition, remove this status comment, and re-trigger Otto.",
-  ].join("\n");
+function failedContent(transition: Extract<StatusTransition, { status: "failed" }>): string {
+  const detail = failureDetail(transition.reason ?? "unknown");
+  const lines = ["Status: failed", "", detail];
+
+  if (transition.summary !== undefined && transition.summary.length > 0) {
+    const truncated =
+      transition.summary.length > SUMMARY_MAX_LENGTH
+        ? `${transition.summary.slice(0, SUMMARY_MAX_LENGTH)}…`
+        : transition.summary;
+    lines.push("", truncated);
+  }
+
+  lines.push("", RETRY_INSTRUCTION);
+  return lines.join("\n");
 }
 
 function failureDetail(reason: FailedStatusReason): string {

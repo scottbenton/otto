@@ -88,7 +88,33 @@ describe("buildStatusComment()", () => {
 
     expect(body).toContain("Status: failed");
     expect(body).toContain("The agent command timed out.");
-    expect(body).toContain("Retry:");
+    expect(body).toContain("To retry, post a new comment: otto retry");
+  });
+
+  it("includes agent summary in failed status when provided", () => {
+    const body = buildStatusComment(
+      IDENTITY,
+      failedStatus("runner-failed", "Could not find the target file to modify."),
+    );
+
+    expect(body).toContain("Could not find the target file to modify.");
+    expect(body).toContain("To retry, post a new comment: otto retry");
+  });
+
+  it("truncates agent summary to 500 characters", () => {
+    const longSummary = "x".repeat(600);
+    const body = buildStatusComment(IDENTITY, failedStatus("runner-failed", longSummary));
+
+    expect(body).toContain("x".repeat(500));
+    expect(body).toContain("…");
+    expect(body).not.toContain("x".repeat(501));
+  });
+
+  it("omits summary section when no summary is provided", () => {
+    const body = buildStatusComment(IDENTITY, failedStatus("unknown"));
+
+    expect(body).toContain("Status: failed");
+    expect(body).toContain("To retry, post a new comment: otto retry");
   });
 
   it("does not include caller-provided raw output in failed statuses", () => {
