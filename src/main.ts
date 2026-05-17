@@ -7,8 +7,13 @@ import { loadConfig } from "./config/index.js";
 import { createDaemon } from "./daemon.js";
 import { GitHubClient, resolveAuthenticatedUser } from "./github/index.js";
 import { createLogger } from "./logger.js";
-import { PollingLoop } from "./polling/index.js";
+import { DispatchOrchestrator, PollingLoop } from "./polling/index.js";
+import { getTriggerTargetKey } from "./polling/dispatch.js";
+import { recoverStaleComments } from "./polling/recovery.js";
 import { detectTrigger } from "./polling/trigger.js";
+import { RepoManager } from "./repo/index.js";
+import { CommandRunner } from "./runner/command.js";
+import { executeRun } from "./run/execute.js";
 import { acquireLock } from "./state/index.js";
 import { StateStore } from "./state/store.js";
 import { registerShutdown } from "./shutdown.js";
@@ -90,6 +95,17 @@ async function main(): Promise<void> {
     return;
   }
 
+  const defaultRunnerConfig = config.agent.runners[config.agent.default];
+  if (defaultRunnerConfig === undefined) {
+    daemonLogger.error(
+      { defaultRunner: config.agent.default },
+      "default agent runner not found in config",
+    );
+    process.exitCode = 1;
+    await releaseLock();
+    return;
+  }
+
   const github = new GitHubClient(token);
   const authenticatedLogin = await resolveAuthenticatedUser(github);
 
@@ -102,6 +118,35 @@ async function main(): Promise<void> {
     "otto starting",
   );
 
+  const repoManager = new RepoManager({
+    reposDir: config.workspace.reposDir,
+    worktreesDir: config.workspace.worktreesDir,
+    stateStore: state,
+  });
+
+  const agentRunner = new CommandRunner({
+    id: config.agent.default,
+    command: defaultRunnerConfig.command,
+  });
+
+  const orchestrator = new DispatchOrchestrator({
+    windowMs: config.otto.debounceSeconds * 1000,
+    maxConcurrentRuns: config.otto.maxConcurrentRuns,
+    onRunReady: (batch) => {
+      void executeRun(batch, {
+        github,
+        machineId: state.machineId,
+        repoManager,
+        agentRunner,
+        timeoutMs: config.agent.timeoutSeconds * 1000,
+        onRunComplete: (targetKey) => { orchestrator.onRunComplete(targetKey); },
+        logger: daemonLogger,
+      });
+    },
+  });
+
+  await recoverStaleComments(github, config.github.repos, state.machineId, authenticatedLogin);
+
   const pollingLoop = new PollingLoop({
     client: github,
     state,
@@ -113,10 +158,12 @@ async function main(): Promise<void> {
       for (const comment of comments) {
         const match = detectTrigger(comment, repo, config.otto.trigger);
         if (match === null) continue;
+        const targetKey = getTriggerTargetKey(match);
         daemonLogger.info(
-          { repo, commentId: comment.id, taskDescription: match.taskDescription },
+          { repo, commentId: comment.id, targetKey, taskDescription: match.taskDescription },
           "trigger detected",
         );
+        orchestrator.addTrigger(match);
       }
     },
   });
