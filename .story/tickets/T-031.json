@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-005"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-16",
   "createdDate": "2026-05-16",
   "description": "When the agent successfully pushes commits while working on an issue (sourceType = issue_comment), open a PR automatically via POST /repos/{owner}/{repo}/pulls. Title: derived from the issue title. Body: links back to the originating issue ('Closes #{number}'). Base: the repo default branch. Head: the Otto branch. Update the status comment with the PR number and URL on success. This does not apply to PR sources (pr_conversation_comment, pr_line_comment) — those already have an open PR.",
   "id": "T-031",
   "order": 70,
   "phase": "p3",
-  "status": "open",
+  "status": "complete",
   "title": "PR creation for implement_issue tasks",
   "type": "task"
 }
