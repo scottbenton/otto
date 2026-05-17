@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { hydrateContext } from "../context/hydrate.js";
 import { normalizeContext } from "../context/normalize.js";
 import type { GitHubClient } from "../github/client.js";
@@ -6,13 +8,15 @@ import type { OttoLogger } from "../logger.js";
 import { claimOrAbort, commentSourceKey } from "../polling/claim.js";
 import type { DispatchBatch } from "../polling/dispatch.js";
 import {
+  abortedDuplicateClaimStatus,
   completedStatus,
   failedStatus,
   updateStatusComment,
 } from "../polling/status.js";
 import type { TriggerMatch } from "../polling/trigger.js";
+import type { RawComment } from "../polling/types.js";
 import { NonFastForwardError, type RepoManager } from "../repo/manager.js";
-import type { AgentRunner } from "../runner/types.js";
+import type { AgentRunResult, AgentRunner } from "../runner/types.js";
 
 export type ExecuteRunDeps = {
   github: GitHubClient;
@@ -24,9 +28,71 @@ export type ExecuteRunDeps = {
   logger: OttoLogger;
 };
 
-function deriveBranch(targetKey: string, runId: string): string {
+type ClaimEntry = {
+  comment: RawComment;
+  statusCommentId: number;
+  identity: { runId: string; machineId: string; sourceKey: string };
+};
+
+function deriveBranch(targetKey: string, batchRunId: string): string {
   const safe = targetKey.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
-  return `otto/${safe}-${runId.slice(0, 8)}`;
+  return `otto/${safe}-${batchRunId.slice(0, 8)}`;
+}
+
+function buildTaskDescription(items: TriggerMatch[]): string {
+  if (items.length === 1) {
+    const first = items[0];
+    return first !== undefined ? first.taskDescription : "";
+  }
+  return items.map((item, i) => `${String(i + 1)}. ${item.taskDescription}`).join("\n\n");
+}
+
+async function rollbackClaims(
+  github: GitHubClient,
+  claims: ClaimEntry[],
+): Promise<void> {
+  await Promise.allSettled(
+    claims.map(({ comment, statusCommentId, identity }) =>
+      updateStatusComment(github, comment, statusCommentId, identity, abortedDuplicateClaimStatus()),
+    ),
+  );
+}
+
+async function updateAllClaims(
+  github: GitHubClient,
+  claims: ClaimEntry[],
+  result: AgentRunResult,
+  branchUrl: string,
+  pullRequestUrl: string | undefined,
+): Promise<void> {
+  await Promise.allSettled(
+    claims.map(({ comment, statusCommentId, identity }) => {
+      const perCommentSummary = result.commentSummaries?.[comment.id];
+      const opts: Parameters<typeof completedStatus>[0] = { branchUrl };
+      if (pullRequestUrl !== undefined) opts.pullRequestUrl = pullRequestUrl;
+      if (perCommentSummary !== undefined) opts.summary = perCommentSummary;
+      return updateStatusComment(
+        github,
+        comment,
+        statusCommentId,
+        identity,
+        completedStatus(opts),
+      );
+    }),
+  );
+}
+
+async function failAllClaims(
+  github: GitHubClient,
+  claims: ClaimEntry[],
+  reason: "runner-failed" | "timeout" | "push-failed" | "unknown",
+  summary?: string,
+): Promise<void> {
+  await Promise.allSettled(
+    claims.map(({ comment, statusCommentId, identity }) =>
+      updateStatusComment(github, comment, statusCommentId, identity, failedStatus(reason, summary)),
+    ),
+  );
 }
 
 export async function executeRun(
@@ -35,33 +101,45 @@ export async function executeRun(
 ): Promise<void> {
   const { github, machineId, repoManager, agentRunner, timeoutMs, onRunComplete, logger } = deps;
 
-  const trigger = batch.items[batch.items.length - 1];
-  if (trigger === undefined) {
+  const lastTrigger = batch.items[batch.items.length - 1];
+  if (lastTrigger === undefined) {
     onRunComplete(batch.targetKey);
     return;
   }
 
-  const { comment, repo, taskDescription } = trigger;
-  const runLog = logger.child({ targetKey: batch.targetKey, repo });
+  const { repo } = lastTrigger;
+  const batchRunId = randomUUID();
+  const runLog = logger.child({ targetKey: batch.targetKey, repo, batchRunId });
 
-  const claim = await claimOrAbort(github, comment, machineId);
-  if (!claim.claimed) {
-    runLog.info({}, "run skipped — already claimed");
-    onRunComplete(batch.targetKey);
-    return;
+  // Claim every trigger comment. If any claim fails, roll back previous claims and bail —
+  // another instance already owns this batch.
+  const claims: ClaimEntry[] = [];
+  for (const item of batch.items) {
+    const claim = await claimOrAbort(github, item.comment, machineId);
+    if (!claim.claimed) {
+      await rollbackClaims(github, claims);
+      runLog.info({}, "run skipped — already claimed");
+      onRunComplete(batch.targetKey);
+      return;
+    }
+    claims.push({
+      comment: item.comment,
+      statusCommentId: claim.statusCommentId,
+      identity: { runId: claim.runId, machineId, sourceKey: commentSourceKey(item.comment) },
+    });
   }
 
-  const { runId, statusCommentId } = claim;
-  const identity = { runId, machineId, sourceKey: commentSourceKey(comment) };
-
-  runLog.info({ runId }, "run claimed");
+  runLog.info({ claimCount: claims.length }, "run claimed");
 
   let worktreeAcquired = false;
   try {
-    const rawCtx = await hydrateContext(github, comment);
+    // Hydrate context from the most recent trigger comment.
+    const rawCtx = await hydrateContext(github, lastTrigger.comment);
     const ctx = normalizeContext(rawCtx);
 
-    const branch = deriveBranch(batch.targetKey, runId);
+    const taskDescription = buildTaskDescription(batch.items);
+    const branch = deriveBranch(batch.targetKey, batchRunId);
+
     const worktree = await repoManager.prepareWorktree({
       slug: repo,
       targetKey: batch.targetKey,
@@ -80,14 +158,8 @@ export async function executeRun(
     if (!result.success) {
       const reason: "timeout" | "runner-failed" =
         result.error?.includes("timed out") === true ? "timeout" : "runner-failed";
-      await updateStatusComment(
-        github,
-        comment,
-        statusCommentId,
-        identity,
-        failedStatus(reason, result.summary),
-      );
-      runLog.warn({ runId, error: result.error }, "agent run failed");
+      await failAllClaims(github, claims, reason, result.summary);
+      runLog.warn({ error: result.error }, "agent run failed");
       return;
     }
 
@@ -110,33 +182,15 @@ export async function executeRun(
       pullRequestUrl = pr.htmlUrl;
     }
 
-    await updateStatusComment(
-      github,
-      comment,
-      statusCommentId,
-      identity,
-      completedStatus(
-        pullRequestUrl !== undefined ? { branchUrl, pullRequestUrl } : { branchUrl },
-      ),
-    );
+    await updateAllClaims(github, claims, result, branchUrl, pullRequestUrl);
 
-    runLog.info({ runId, branchUrl, pullRequestUrl }, "run completed");
+    runLog.info({ branchUrl, pullRequestUrl }, "run completed");
   } catch (err) {
     const reason: "push-failed" | "unknown" =
       err instanceof NonFastForwardError ? "push-failed" : "unknown";
     const errMsg = err instanceof Error ? err.message : String(err);
-    runLog.error({ runId, error: errMsg }, "run failed");
-    try {
-      await updateStatusComment(
-        github,
-        comment,
-        statusCommentId,
-        identity,
-        failedStatus(reason, errMsg),
-      );
-    } catch {
-      // best-effort
-    }
+    runLog.error({ error: errMsg }, "run failed");
+    await failAllClaims(github, claims, reason, errMsg);
   } finally {
     if (worktreeAcquired) {
       await repoManager.releaseWorktree(batch.targetKey).catch(() => undefined);

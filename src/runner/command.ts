@@ -93,12 +93,11 @@ export class CommandRunner implements AgentRunner {
 
       child.on("close", (code) => {
         const raw = Buffer.concat(chunks).toString("utf-8");
-        const summary = truncate(raw, STDOUT_TRUNCATE_CHARS);
 
         if (timedOut) {
           settle({
             success: false,
-            summary,
+            summary: truncate(raw, STDOUT_TRUNCATE_CHARS),
             error: `process timed out after ${input.timeoutMs.toString()}ms`,
           });
           return;
@@ -107,13 +106,32 @@ export class CommandRunner implements AgentRunner {
         if (code !== 0) {
           settle({
             success: false,
-            summary,
+            summary: truncate(raw, STDOUT_TRUNCATE_CHARS),
             error: `process exited with code ${String(code)}`,
           });
           return;
         }
 
-        settle({ success: true, summary });
+        if (input.capabilityGrants.supportsStructuredOutput === true) {
+          try {
+            const parsed = JSON.parse(raw) as {
+              summary?: string;
+              commentSummaries?: Record<string, string>;
+            };
+            const result: AgentRunResult = { success: true, summary: parsed.summary ?? "" };
+            if (parsed.commentSummaries !== undefined) {
+              result.commentSummaries = Object.fromEntries(
+                Object.entries(parsed.commentSummaries).map(([k, v]) => [Number(k), v]),
+              );
+            }
+            settle(result);
+            return;
+          } catch {
+            // fall through to plain summary
+          }
+        }
+
+        settle({ success: true, summary: truncate(raw, STDOUT_TRUNCATE_CHARS) });
       });
     });
   }
