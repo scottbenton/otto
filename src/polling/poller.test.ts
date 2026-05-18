@@ -257,7 +257,7 @@ describe("pollRepo()", () => {
     expect(logger.debug).toHaveBeenCalledWith(
       {
         filteredCount: 2,
-        filteredByOwnComment: 1,
+        filteredByOtherUser: 1,
         filteredByStatusComment: 0,
         filteredByCreatedBeforeLastPoll: 1,
       },

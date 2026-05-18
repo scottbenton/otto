@@ -8,7 +8,7 @@ const OVERLAP_SECONDS = 1;
 const OTTO_STATUS_MARKER = "<!-- otto:v1";
 
 type FilterStats = {
-  ownComment: number;
+  otherUser: number;
   statusComment: number;
   createdBeforeLastPoll: number;
 };
@@ -21,7 +21,7 @@ function subtractOneSecond(isoString: string): string {
 
 function emptyFilterStats(): FilterStats {
   return {
-    ownComment: 0,
+    otherUser: 0,
     statusComment: 0,
     createdBeforeLastPoll: 0,
   };
@@ -45,7 +45,7 @@ function filterCommentsWithStats(
 
   for (const comment of comments) {
     if (comment.user?.login !== authenticatedUser) {
-      stats.ownComment++;
+      stats.otherUser++;
       continue;
     }
     if (comment.body.includes(OTTO_STATUS_MARKER)) {
@@ -109,12 +109,12 @@ export async function pollRepo(
     rawSince,
     filterStats,
   );
-  const filteredCount = filterStats.ownComment + filterStats.statusComment + filterStats.createdBeforeLastPoll;
+  const filteredCount = filterStats.otherUser + filterStats.statusComment + filterStats.createdBeforeLastPoll;
   if (filteredCount > 0) {
     repoLogger.debug(
       {
         filteredCount,
-        filteredByOwnComment: filterStats.ownComment,
+        filteredByOtherUser: filterStats.otherUser,
         filteredByStatusComment: filterStats.statusComment,
         filteredByCreatedBeforeLastPoll: filterStats.createdBeforeLastPoll,
       },
