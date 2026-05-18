@@ -158,13 +158,13 @@ function makeClient(opts: ClientOpts = {}): GitHubClient {
 describe("hydrateContext() — IssueComment on a plain issue", () => {
   it("returns kind: issue", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: false }) });
-    const ctx = await hydrateContext(client, makeIssueComment());
+    const ctx = await hydrateContext(client, [makeIssueComment()]);
     expect(ctx.kind).toBe("issue");
   });
 
   it("populates owner, repo, and number from issue_url", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse() });
-    const ctx = await hydrateContext(client, makeIssueComment(5));
+    const ctx = await hydrateContext(client, [makeIssueComment(5)]);
     expect(ctx.owner).toBe("owner");
     expect(ctx.repo).toBe("repo");
     expect(ctx.number).toBe(5);
@@ -174,7 +174,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
     const client = makeClient({
       issueResponse: makeIssueResponse({ labels: ["bug", "help wanted"] }),
     });
-    const ctx = await hydrateContext(client, makeIssueComment());
+    const ctx = await hydrateContext(client, [makeIssueComment()]);
     expect(ctx.issue.title).toBe("Fix the bug");
     expect(ctx.issue.body).toBe("It is broken");
     expect(ctx.issue.state).toBe("open");
@@ -184,7 +184,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
 
   it("maps thread comments correctly", async () => {
     const client = makeClient({ comments: makeCommentResponse(2) });
-    const ctx = await hydrateContext(client, makeIssueComment());
+    const ctx = await hydrateContext(client, [makeIssueComment()]);
     if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.comments).toHaveLength(2);
     expect(ctx.comments[0]).toMatchObject({ id: 1000, author: "bob", body: "comment 0" });
@@ -193,20 +193,20 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
   it("fetches issue details from issue_url", async () => {
     const comment = makeIssueComment(3);
     const client = makeClient({});
-    await hydrateContext(client, comment);
+    await hydrateContext(client, [comment]);
     expect(requestMock(client)).toHaveBeenCalledWith(comment.issue_url);
   });
 
   it("fetches comments from issue_url/comments", async () => {
     const comment = makeIssueComment(3);
     const client = makeClient({});
-    await hydrateContext(client, comment);
+    await hydrateContext(client, [comment]);
     expect(paginateAllMock(client)).toHaveBeenCalledWith(`${comment.issue_url}/comments`);
   });
 
   it("sets truncated: false when comments <= 200", async () => {
     const client = makeClient({ comments: makeCommentResponse(200) });
-    const ctx = await hydrateContext(client, makeIssueComment());
+    const ctx = await hydrateContext(client, [makeIssueComment()]);
     if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.truncated).toBe(false);
     expect(ctx.comments).toHaveLength(200);
@@ -214,7 +214,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
 
   it("truncates to 200 and sets truncated: true when comments > 200", async () => {
     const client = makeClient({ comments: makeCommentResponse(201) });
-    const ctx = await hydrateContext(client, makeIssueComment());
+    const ctx = await hydrateContext(client, [makeIssueComment()]);
     if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.truncated).toBe(true);
     expect(ctx.comments).toHaveLength(200);
@@ -223,7 +223,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
   it("handles null comment author", async () => {
     const nullUserComment = [{ id: 1001, user: null, body: "anon", created_at: "2024-01-01T00:00:00Z" }];
     const client = makeClient({ comments: nullUserComment });
-    const ctx = await hydrateContext(client, makeIssueComment());
+    const ctx = await hydrateContext(client, [makeIssueComment()]);
     if (ctx.kind !== "issue") throw new Error("Expected issue");
     expect(ctx.comments[0]?.author).toBeNull();
   });
@@ -231,7 +231,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
   it("handles null issue author", async () => {
     const issueNoUser = { ...makeIssueResponse(), user: null };
     const client = makeClient({ issueResponse: issueNoUser });
-    const ctx = await hydrateContext(client, makeIssueComment());
+    const ctx = await hydrateContext(client, [makeIssueComment()]);
     expect(ctx.issue.author).toBeNull();
   });
 });
@@ -239,7 +239,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
 describe("hydrateContext() — IssueComment on a PR (issue has pull_request field)", () => {
   it("returns kind: pull_request", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
-    const ctx = await hydrateContext(client, makeIssueComment(1));
+    const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     expect(ctx.kind).toBe("pull_request");
   });
 
@@ -248,7 +248,7 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
       issueResponse: makeIssueResponse({ isPr: true }),
       pullResponse: makePullResponse("main", "feature-branch"),
     });
-    const ctx = await hydrateContext(client, makeIssueComment(1));
+    const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(ctx.pullRequest.baseBranch).toBe("main");
     expect(ctx.pullRequest.headBranch).toBe("feature-branch");
@@ -259,7 +259,7 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
       issueResponse: makeIssueResponse({ isPr: true }),
       reviews: makeReviewResponse(2),
     });
-    const ctx = await hydrateContext(client, makeIssueComment(1));
+    const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(ctx.reviews).toHaveLength(2);
     expect(ctx.reviews[0]).toMatchObject({ id: 2000, author: "carol", state: "APPROVED" });
@@ -267,27 +267,27 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
 
   it("has empty inlineThread", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
-    const ctx = await hydrateContext(client, makeIssueComment(1));
+    const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(ctx.inlineThread).toEqual([]);
   });
 
   it("does not fetch thread comments", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
-    await hydrateContext(client, makeIssueComment(1));
+    await hydrateContext(client, [makeIssueComment(1)]);
     const paginateCalls = paginateAllMock(client).mock.calls as [string][];
     expect(paginateCalls.every(([url]) => !url.endsWith("/comments"))).toBe(true);
   });
 
   it("fetches pulls URL derived from issue_url", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
-    await hydrateContext(client, makeIssueComment(1));
+    await hydrateContext(client, [makeIssueComment(1)]);
     expect(requestMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1`);
   });
 
   it("fetches reviews from pulls/{number}/reviews", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
-    await hydrateContext(client, makeIssueComment(1));
+    await hydrateContext(client, [makeIssueComment(1)]);
     expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1/reviews`);
   });
 });
@@ -295,13 +295,13 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
 describe("hydrateContext() — PullRequestReviewComment", () => {
   it("returns kind: pull_request", async () => {
     const client = makeClient({});
-    const ctx = await hydrateContext(client, makePrReviewComment());
+    const ctx = await hydrateContext(client, [makePrReviewComment()]);
     expect(ctx.kind).toBe("pull_request");
   });
 
   it("populates owner, repo, number from pull_request_url", async () => {
     const client = makeClient({});
-    const ctx = await hydrateContext(client, makePrReviewComment({ prNumber: 7 }));
+    const ctx = await hydrateContext(client, [makePrReviewComment({ prNumber: 7 })]);
     expect(ctx.owner).toBe("owner");
     expect(ctx.repo).toBe("repo");
     expect(ctx.number).toBe(7);
@@ -310,34 +310,34 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
   it("fetches issue details from /issues/{number} derived from pull_request_url", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
-    await hydrateContext(client, comment);
+    await hydrateContext(client, [comment]);
     expect(requestMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/issues/2`);
   });
 
   it("fetches PR details from pull_request_url", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
-    await hydrateContext(client, comment);
+    await hydrateContext(client, [comment]);
     expect(requestMock(client)).toHaveBeenCalledWith(comment.pull_request_url);
   });
 
   it("fetches all review comments from pulls/{number}/comments", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
-    await hydrateContext(client, comment);
+    await hydrateContext(client, [comment]);
     expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/comments`);
   });
 
   it("fetches reviews from pull_request_url/reviews", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
-    await hydrateContext(client, comment);
+    await hydrateContext(client, [comment]);
     expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/reviews`);
   });
 
   it("includes pullRequest branch refs", async () => {
     const client = makeClient({ pullResponse: makePullResponse("develop", "hotfix") });
-    const ctx = await hydrateContext(client, makePrReviewComment());
+    const ctx = await hydrateContext(client, [makePrReviewComment()]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(ctx.pullRequest.baseBranch).toBe("develop");
     expect(ctx.pullRequest.headBranch).toBe("hotfix");
@@ -345,7 +345,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
 
   it("includes pullRequest head sha", async () => {
     const client = makeClient({ pullResponse: makePullResponse("main", "feature", "head-sha") });
-    const ctx = await hydrateContext(client, makePrReviewComment());
+    const ctx = await hydrateContext(client, [makePrReviewComment()]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(ctx.pullRequest.headSha).toBe("head-sha");
   });
@@ -353,7 +353,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
   it("fetches the triggering review comment by URL", async () => {
     const comment = makePrReviewComment({ id: 321 });
     const client = makeClient({});
-    await hydrateContext(client, comment);
+    await hydrateContext(client, [comment]);
     expect(requestMock(client)).toHaveBeenCalledWith(comment.url);
   });
 
@@ -367,10 +367,10 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       }),
     });
 
-    const ctx = await hydrateContext(client, makePrReviewComment({ id: 321 }));
+    const ctx = await hydrateContext(client, [makePrReviewComment({ id: 321 })]);
 
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
-    expect(ctx.lineComment).toEqual({
+    expect(ctx.lineComments[0]).toEqual({
       outdated: true,
       id: 321,
       path: "src/old.ts",
@@ -386,7 +386,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       reviewCommentDetails: makeReviewCommentDetails({ position: null }),
     });
 
-    await hydrateContext(client, makePrReviewComment());
+    await hydrateContext(client, [makePrReviewComment()]);
 
     const requestCalls = requestMock(client).mock.calls as [string][];
     expect(requestCalls.every(([url]) => !url.includes("/contents/"))).toBe(true);
@@ -404,14 +404,14 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       contentResponse: makeContentResponse("const current = true;\n"),
     });
 
-    const ctx = await hydrateContext(client, makePrReviewComment({ id: 321 }));
+    const ctx = await hydrateContext(client, [makePrReviewComment({ id: 321 })]);
 
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(requestMock(client)).toHaveBeenCalledWith(
       "/repos/owner/repo/contents/src/nested/file.ts",
       { params: { ref: "head-sha" } },
     );
-    expect(ctx.lineComment).toEqual({
+    expect(ctx.lineComments[0]).toEqual({
       outdated: false,
       id: 321,
       path: "src/nested/file.ts",
@@ -435,7 +435,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
         { id: 99 }, // different thread, no relation
       ]);
       const client = makeClient({ reviewComments });
-      const ctx = await hydrateContext(client, trigger);
+      const ctx = await hydrateContext(client, [trigger]);
       if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
       expect(ctx.inlineThread.map((c) => c.id)).toEqual([10, 11, 12]);
     });
@@ -449,7 +449,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
         { id: 99 },
       ]);
       const client = makeClient({ reviewComments });
-      const ctx = await hydrateContext(client, trigger);
+      const ctx = await hydrateContext(client, [trigger]);
       if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
       expect(ctx.inlineThread.map((c) => c.id)).toEqual([10, 11, 12]);
     });
@@ -458,7 +458,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       const trigger = makePrReviewComment({ id: 10 });
       const reviewComments = makeReviewCommentResponse([{ id: 10 }, { id: 99 }]);
       const client = makeClient({ reviewComments });
-      const ctx = await hydrateContext(client, trigger);
+      const ctx = await hydrateContext(client, [trigger]);
       if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
       expect(ctx.inlineThread.map((c) => c.id)).toEqual([10]);
     });
@@ -466,7 +466,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
     it("returns empty array when trigger comment is not found in review comments", async () => {
       const trigger = makePrReviewComment({ id: 10 });
       const client = makeClient({ reviewComments: [] });
-      const ctx = await hydrateContext(client, trigger);
+      const ctx = await hydrateContext(client, [trigger]);
       if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
       expect(ctx.inlineThread).toEqual([]);
     });
@@ -475,7 +475,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       const trigger = makePrReviewComment({ id: 10 });
       const reviewComments = makeReviewCommentResponse([{ id: 10 }]);
       const client = makeClient({ reviewComments });
-      const ctx = await hydrateContext(client, trigger);
+      const ctx = await hydrateContext(client, [trigger]);
       if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
       expect(ctx.inlineThread[0]).toMatchObject({
         id: 10,

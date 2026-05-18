@@ -201,6 +201,7 @@ async function hydrateFromIssueUrl(
       pullRequest: toPullRequestDetails(pullRaw),
       reviews: reviewsRaw.map(toReview),
       inlineThread: [],
+      lineComments: [],
     };
   }
 
@@ -210,9 +211,12 @@ async function hydrateFromIssueUrl(
 
 async function hydrateFromPrUrl(
   client: GitHubClient,
-  trigger: PullRequestReviewComment,
+  triggers: PullRequestReviewComment[],
 ): Promise<HydratedContext> {
-  const pullUrl = trigger.pull_request_url;
+  const anchor = triggers.at(-1);
+  if (anchor === undefined) throw new Error("hydrateFromPrUrl requires at least one trigger");
+
+  const pullUrl = anchor.pull_request_url;
   const { owner, repo, number } = parseRepoInfo(pullUrl);
   const issueUrl = pullUrl.replace(/\/pulls\/(\d+)$/, "/issues/$1");
 
@@ -222,14 +226,23 @@ async function hydrateFromPrUrl(
     client.paginateAll<GitHubReviewResponse>(`${pullUrl}/reviews`),
     client.paginateAll<GitHubReviewCommentResponse>(`${pullUrl}/comments`),
   ]);
-  const reviewCommentRaw = await client.request<GitHubReviewCommentResponse>(trigger.url);
-  const lineComment = await buildLineContext(
-    client,
-    owner,
-    repo,
-    pullRaw.head.sha,
-    reviewCommentRaw,
+
+  const lineComments = await Promise.all(
+    triggers.map(async (trigger) => {
+      const reviewCommentRaw = await client.request<GitHubReviewCommentResponse>(trigger.url);
+      return buildLineContext(client, owner, repo, pullRaw.head.sha, reviewCommentRaw);
+    }),
   );
+
+  // Merge inline threads for all triggers, deduplicating by comment ID.
+  const seenIds = new Set<number>();
+  const inlineThread = triggers
+    .flatMap((trigger) => extractInlineThread(allReviewComments, trigger))
+    .filter((c) => {
+      if (seenIds.has(c.id)) return false;
+      seenIds.add(c.id);
+      return true;
+    });
 
   return {
     kind: "pull_request",
@@ -239,17 +252,22 @@ async function hydrateFromPrUrl(
     issue: toIssueDetails(issueRaw),
     pullRequest: toPullRequestDetails(pullRaw),
     reviews: reviewsRaw.map(toReview),
-    inlineThread: extractInlineThread(allReviewComments, trigger),
-    lineComment,
+    inlineThread,
+    lineComments,
   };
 }
 
 export async function hydrateContext(
   client: GitHubClient,
-  comment: RawComment,
+  comments: RawComment[],
 ): Promise<HydratedContext> {
-  if (isIssueComment(comment)) {
-    return hydrateFromIssueUrl(client, comment.issue_url);
+  const last = comments.at(-1);
+  if (last === undefined) throw new Error("hydrateContext requires at least one comment");
+
+  if (isIssueComment(last)) {
+    return hydrateFromIssueUrl(client, last.issue_url);
   }
-  return hydrateFromPrUrl(client, comment);
+
+  const prComments = comments.filter((c): c is PullRequestReviewComment => !isIssueComment(c));
+  return hydrateFromPrUrl(client, prComments);
 }

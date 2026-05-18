@@ -82,6 +82,7 @@ function makePrContext(overrides: Partial<PullRequestContext> = {}): PullRequest
     pullRequest: PR_DETAILS,
     reviews: [REVIEW],
     inlineThread: [COMMENT],
+    lineComments: [],
     ...overrides,
   };
 }
@@ -120,8 +121,8 @@ describe("normalizeContext() — IssueContext", () => {
     expect(normalizeContext(makeIssueContext({ truncated: false })).truncated).toBe(false);
   });
 
-  it("sets lineContext to null", () => {
-    expect(normalizeContext(makeIssueContext()).lineContext).toBeNull();
+  it("sets lineContexts to empty array", () => {
+    expect(normalizeContext(makeIssueContext()).lineContexts).toEqual([]);
   });
 });
 
@@ -154,36 +155,36 @@ describe("normalizeContext() — PullRequestContext (conversation comment, no li
     expect(normalizeContext(makePrContext()).truncated).toBe(false);
   });
 
-  it("sets lineContext to null", () => {
-    expect(normalizeContext(makePrContext()).lineContext).toBeNull();
+  it("sets lineContexts to empty array", () => {
+    expect(normalizeContext(makePrContext()).lineContexts).toEqual([]);
   });
 });
 
 describe("normalizeContext() — PullRequestContext (line comment, with lineComment)", () => {
   it("sets sourceType to pr_line_comment when lineComment is present", () => {
-    const ctx = makePrContext({ lineComment: LINE_CONTEXT_CURRENT });
+    const ctx = makePrContext({ lineComments: [LINE_CONTEXT_CURRENT] });
     expect(normalizeContext(ctx).sourceType).toBe("pr_line_comment");
   });
 
-  it("sets lineContext from lineComment", () => {
-    const ctx = makePrContext({ lineComment: LINE_CONTEXT_CURRENT });
-    expect(normalizeContext(ctx).lineContext).toEqual(LINE_CONTEXT_CURRENT);
+  it("sets lineContexts from lineComments", () => {
+    const ctx = makePrContext({ lineComments: [LINE_CONTEXT_CURRENT] });
+    expect(normalizeContext(ctx).lineContexts).toEqual([LINE_CONTEXT_CURRENT]);
   });
 
-  it("passes through outdated lineComment", () => {
-    const ctx = makePrContext({ lineComment: LINE_CONTEXT_OUTDATED });
+  it("passes through outdated lineComments", () => {
+    const ctx = makePrContext({ lineComments: [LINE_CONTEXT_OUTDATED] });
     const result = normalizeContext(ctx);
     expect(result.sourceType).toBe("pr_line_comment");
-    expect(result.lineContext).toEqual(LINE_CONTEXT_OUTDATED);
+    expect(result.lineContexts).toEqual([LINE_CONTEXT_OUTDATED]);
   });
 
   it("still sets truncated to false", () => {
-    const ctx = makePrContext({ lineComment: LINE_CONTEXT_CURRENT });
+    const ctx = makePrContext({ lineComments: [LINE_CONTEXT_CURRENT] });
     expect(normalizeContext(ctx).truncated).toBe(false);
   });
 
   it("still passes through reviews", () => {
-    const ctx = makePrContext({ lineComment: LINE_CONTEXT_CURRENT, reviews: [REVIEW] });
+    const ctx = makePrContext({ lineComments: [LINE_CONTEXT_CURRENT], reviews: [REVIEW] });
     expect(normalizeContext(ctx).reviews).toEqual([REVIEW]);
   });
 });

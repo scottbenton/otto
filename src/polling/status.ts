@@ -11,13 +11,14 @@ type StatusIdentity = {
 export type CompletedStatusOptions = {
   branchUrl: string;
   pullRequestUrl?: string;
+  summary?: string;
 };
 
 export type FailedStatusReason = "runner-failed" | "timeout" | "push-failed" | "unknown";
 
 export type StatusTransition =
   | { status: "running" }
-  | { status: "completed"; branchUrl: string; pullRequestUrl?: string }
+  | { status: "completed"; branchUrl: string; pullRequestUrl?: string; summary?: string }
   | { status: "failed"; reason?: FailedStatusReason; summary?: string }
   | { status: "interrupted" }
   | { status: "aborted"; reason: "duplicate-claim" };
@@ -71,6 +72,9 @@ export function completedStatus(options: CompletedStatusOptions): StatusTransiti
   if (options.pullRequestUrl !== undefined) {
     transition.pullRequestUrl = options.pullRequestUrl;
   }
+  if (options.summary !== undefined) {
+    transition.summary = options.summary;
+  }
   return transition;
 }
 
@@ -111,6 +115,9 @@ function completedContent(transition: Extract<StatusTransition, { status: "compl
   const lines = ["Status: completed", "", `Branch: ${transition.branchUrl}`];
   if (transition.pullRequestUrl !== undefined) {
     lines.push(`Pull request: ${transition.pullRequestUrl}`);
+  }
+  if (transition.summary !== undefined && transition.summary.length > 0) {
+    lines.push("", transition.summary);
   }
   return lines.join("\n");
 }
