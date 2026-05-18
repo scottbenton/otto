@@ -5,8 +5,11 @@ import type { RawComment } from "./types.js";
 
 const OVERLAP_SECONDS = 1;
 
+const OTTO_STATUS_MARKER = "<!-- otto:v1";
+
 type FilterStats = {
-  unauthenticatedUser: number;
+  otherUser: number;
+  statusComment: number;
   createdBeforeLastPoll: number;
 };
 
@@ -18,7 +21,8 @@ function subtractOneSecond(isoString: string): string {
 
 function emptyFilterStats(): FilterStats {
   return {
-    unauthenticatedUser: 0,
+    otherUser: 0,
+    statusComment: 0,
     createdBeforeLastPoll: 0,
   };
 }
@@ -41,7 +45,11 @@ function filterCommentsWithStats(
 
   for (const comment of comments) {
     if (comment.user?.login !== authenticatedUser) {
-      stats.unauthenticatedUser++;
+      stats.otherUser++;
+      continue;
+    }
+    if (comment.body.includes(OTTO_STATUS_MARKER)) {
+      stats.statusComment++;
       continue;
     }
     if (lastPolled !== undefined && new Date(comment.created_at) < new Date(lastPolled)) {
@@ -101,12 +109,13 @@ export async function pollRepo(
     rawSince,
     filterStats,
   );
-  const filteredCount = filterStats.unauthenticatedUser + filterStats.createdBeforeLastPoll;
+  const filteredCount = filterStats.otherUser + filterStats.statusComment + filterStats.createdBeforeLastPoll;
   if (filteredCount > 0) {
     repoLogger.debug(
       {
         filteredCount,
-        filteredByUnauthenticatedUser: filterStats.unauthenticatedUser,
+        filteredByOtherUser: filterStats.otherUser,
+        filteredByStatusComment: filterStats.statusComment,
         filteredByCreatedBeforeLastPoll: filterStats.createdBeforeLastPoll,
       },
       "comments filtered",

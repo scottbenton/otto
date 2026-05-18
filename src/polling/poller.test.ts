@@ -61,19 +61,31 @@ function makeLogger(): OttoLogger {
   return logger;
 }
 
+function makeStatusComment(id: number): RawComment {
+  return {
+    ...makeComment(id, { login: "alice" }),
+    body: "<!-- otto:v1 status run=abc machine=xyz source=s -->\nStatus: running",
+  };
+}
+
 describe("filterComments()", () => {
   it("keeps comments from the authenticated user", () => {
     const comment = makeComment(1);
     expect(filterComments([comment], "alice", undefined)).toEqual([comment]);
   });
 
-  it("discards comments from a different user", () => {
-    const comment = makeComment(1, { login: "bot" });
+  it("discards comments from other users", () => {
+    const comment = makeComment(1, { login: "bob" });
     expect(filterComments([comment], "alice", undefined)).toHaveLength(0);
   });
 
   it("discards comments with null user", () => {
     const comment = makeComment(1, { login: null });
+    expect(filterComments([comment], "alice", undefined)).toHaveLength(0);
+  });
+
+  it("discards otto status comments by header marker even when posted by the authenticated user", () => {
+    const comment = makeStatusComment(1);
     expect(filterComments([comment], "alice", undefined)).toHaveLength(0);
   });
 
@@ -92,11 +104,10 @@ describe("filterComments()", () => {
     expect(filterComments([old], "alice", undefined)).toEqual([old]);
   });
 
-  it("applies auth gate before created_at gate", () => {
-    const foreign = makeComment(1, { login: "bot", createdAt: "2099-01-01T00:00:00Z" });
+  it("applies author gate before created_at gate", () => {
+    const foreign = makeComment(1, { login: "bob", createdAt: "2099-01-01T00:00:00Z" });
     expect(filterComments([foreign], "alice", undefined)).toHaveLength(0);
   });
-
 });
 
 describe("pollRepo()", () => {
@@ -182,8 +193,19 @@ describe("pollRepo()", () => {
 
   it("filters out comments from other users before returning", async () => {
     const own = makeComment(1, { login: "alice" });
-    const foreign = makeComment(2, { login: "bot" });
+    const foreign = makeComment(2, { login: "bob" });
     const client = makeClient([own, foreign], []);
+    const state = makeState();
+
+    const result = await pollRepo(client, state, "owner/repo", "alice");
+
+    expect(result.map((c) => c.id)).toEqual([1]);
+  });
+
+  it("filters out otto status comments before returning", async () => {
+    const trigger = makeComment(1, { login: "alice" });
+    const status = makeStatusComment(2);
+    const client = makeClient([trigger, status], []);
     const state = makeState();
 
     const result = await pollRepo(client, state, "owner/repo", "alice");
@@ -224,9 +246,9 @@ describe("pollRepo()", () => {
 
   it("logs aggregate filtered comment counts without per-comment noise", async () => {
     const logger = makeLogger();
-    const fresh = makeComment(1, { createdAt: "2024-06-01T12:00:10.000Z" });
-    const foreign = makeComment(2, { createdAt: "2024-06-01T12:00:10.000Z", login: "bot" });
-    const stale = makeComment(3, { createdAt: "2024-06-01T11:59:58.000Z" });
+    const fresh = makeComment(1, { login: "alice", createdAt: "2024-06-01T12:00:10.000Z" });
+    const foreign = makeComment(2, { login: "bob", createdAt: "2024-06-01T12:00:10.000Z" });
+    const stale = makeComment(3, { login: "alice", createdAt: "2024-06-01T11:59:58.000Z" });
     const client = makeClient([fresh, foreign, stale], []);
     const state = makeState({ lastPolled: "2024-06-01T12:00:00.000Z" });
 
@@ -235,7 +257,8 @@ describe("pollRepo()", () => {
     expect(logger.debug).toHaveBeenCalledWith(
       {
         filteredCount: 2,
-        filteredByUnauthenticatedUser: 1,
+        filteredByOtherUser: 1,
+        filteredByStatusComment: 0,
         filteredByCreatedBeforeLastPoll: 1,
       },
       "comments filtered",
@@ -259,11 +282,12 @@ describe("runPollingTick()", () => {
   });
 
   it("still returns successful repos when one repo fails", async () => {
+    const comment = makeComment(1);
     const client = {
       paginateAll: vi.fn()
         .mockRejectedValueOnce(new Error("network error"))
         .mockRejectedValueOnce(new Error("network error"))
-        .mockResolvedValueOnce([makeComment(1)])
+        .mockResolvedValueOnce([comment])
         .mockResolvedValueOnce([]),
     } as unknown as GitHubClient;
     const state = makeState();
@@ -271,7 +295,7 @@ describe("runPollingTick()", () => {
     const result = await runPollingTick(client, state, ["bad/repo", "good/repo"], "alice");
 
     expect(result.has("bad/repo")).toBe(false);
-    expect(result.get("good/repo")).toEqual([makeComment(1)]);
+    expect(result.get("good/repo")).toEqual([comment]);
   });
 
   it("logs an error when a repo poll fails", async () => {
