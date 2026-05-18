@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { HydratedGitHubContext } from "../context/types.js";
 import { ClaudeRunner } from "./claude.js";
-import { DEFAULT_CLAUDE_SYSTEM_PROMPT } from "./claude-prompt.js";
+import { DEFAULT_AGENT_SYSTEM_PROMPT } from "./system-prompt.js";
 import { createAgentRunner } from "./factory.js";
 import { renderAgentPrompt } from "./prompt.js";
 import type { AgentRunInput } from "./types.js";
@@ -103,7 +103,7 @@ async function writeFakeClaude(source: string): Promise<string> {
 describe("renderAgentPrompt()", () => {
   it("renders task, GitHub context, reviews, comments, line contexts, and git instructions", () => {
     const prompt = renderAgentPrompt(makeInput(), {
-      systemPrompt: DEFAULT_CLAUDE_SYSTEM_PROMPT
+      systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT,
     });
 
     expect(prompt).toContain("Fix the specific lines of code");
@@ -116,12 +116,13 @@ describe("renderAgentPrompt()", () => {
     expect(prompt).toContain("Full current file content");
     expect(prompt).toContain("Commit your changes");
     expect(prompt).toContain("Do not push");
+    expect(prompt).toContain("Otto will open one");
     expect(prompt).toContain("Output only a JSON object");
   });
 
   it("renders required JSON output instructions with comment IDs", () => {
     const prompt = renderAgentPrompt(makeInput(), {
-      systemPrompt: "system"
+      systemPrompt: "system",
     });
 
     expect(prompt).toContain("Output only a JSON object");
@@ -143,7 +144,7 @@ describe("renderAgentPrompt()", () => {
     ];
 
     const prompt = renderAgentPrompt(makeInput({ context }), {
-      systemPrompt: "system"
+      systemPrompt: "system",
     });
 
     expect(prompt).toContain("Status: outdated");
@@ -167,10 +168,11 @@ describe("ClaudeRunner", () => {
   it("invokes claude with prompt, model, cwd, and repo env without json output flag", async () => {
     await writeFakeClaude(`
 const args = process.argv.slice(2);
+const promptIndex = args.indexOf("-p") + 1;
 const payload = {
-  args: args.map((arg, index) => index === 1 ? "<prompt>" : arg),
-  promptIncludesTask: args[1].includes("fix the bug"),
-  promptRequiresJson: args[1].includes("Output only a JSON object"),
+  args: args.map((arg, index) => index === promptIndex ? "<prompt>" : arg),
+  promptIncludesTask: args[promptIndex].includes("fix the bug"),
+  promptRequiresJson: args[promptIndex].includes("Output only a JSON object"),
   cwd: process.cwd(),
   repoPath: process.env.OTTO_REPO_PATH,
   repoPaths: process.env.OTTO_REPO_PATHS
@@ -196,7 +198,15 @@ process.stdout.write(JSON.stringify({ summary: JSON.stringify(payload) }));
     expect(payload.cwd).toBe(await realpath(repoDir));
     expect(payload.repoPath).toBe(repoDir);
     expect(payload.repoPaths).toBe(repoDir);
-    expect(payload.args).toEqual(["-p", "<prompt>", "--model", "claude-test-model"]);
+    expect(payload.args).toEqual([
+      "-p",
+      "<prompt>",
+      "--model",
+      "claude-test-model",
+      "--dangerously-skip-permissions",
+      "--permission-mode",
+      "bypassPermissions",
+    ]);
     expect(payload.promptIncludesTask).toBe(true);
     expect(payload.promptRequiresJson).toBe(true);
   });

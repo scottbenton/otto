@@ -1,13 +1,13 @@
 import { spawn } from "node:child_process";
 
-import { parseOttoJsonOutput, toAgentRunResult } from "./output.js";
+import { parseOttoJsonOutput, toAgentRunResult, truncateRunnerOutput } from "./output.js";
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from "./system-prompt.js";
 import { renderAgentPrompt } from "./prompt.js";
 import type { AgentRunInput, AgentRunResult, AgentRunner, RunnerCapabilities } from "./types.js";
 
-const CLAUDE_COMMAND = "claude";
+const CODEX_COMMAND = "codex";
 
-export type ClaudeRunnerOptions = {
+export type CodexRunnerOptions = {
   id: string;
   model: string;
   spawnImpl?: typeof spawn;
@@ -19,13 +19,13 @@ const CAPABILITIES: RunnerCapabilities = {
   supportsStructuredOutput: true
 };
 
-export class ClaudeRunner implements AgentRunner {
+export class CodexRunner implements AgentRunner {
   readonly id: string;
   readonly capabilities = CAPABILITIES;
   readonly #model: string;
   readonly #spawnImpl: typeof spawn;
 
-  constructor(options: ClaudeRunnerOptions) {
+  constructor(options: CodexRunnerOptions) {
     this.id = options.id;
     this.#model = options.model;
     this.#spawnImpl = options.spawnImpl ?? spawn;
@@ -39,7 +39,11 @@ export class ClaudeRunner implements AgentRunner {
     return this.#spawnWithTimeout(input, cwd, prompt);
   }
 
-  #spawnWithTimeout(input: AgentRunInput, cwd: string, prompt: string): Promise<AgentRunResult> {
+  #spawnWithTimeout(
+    input: AgentRunInput,
+    cwd: string,
+    prompt: string
+  ): Promise<AgentRunResult> {
     return new Promise<AgentRunResult>((resolve) => {
       let settled = false;
       let timedOut = false;
@@ -51,29 +55,27 @@ export class ClaudeRunner implements AgentRunner {
         resolve(result);
       };
 
-      const child = this.#spawnImpl(
-        CLAUDE_COMMAND,
-        [
-          "-p",
-          prompt,
-          "--model",
-          this.#model,
-          "--dangerously-skip-permissions",
-          "--permission-mode",
-          "bypassPermissions",
-        ],
-        {
-          cwd,
-          detached: true,
-          env: {
-            ...process.env,
-            OTTO_REPO_PATH: cwd,
-            OTTO_REPO_PATHS: input.repoPaths.join(":"),
-            OTTO_TIMEOUT_MS: String(input.timeoutMs),
-          },
-          stdio: ["ignore", "pipe", "pipe"],
+      const args = [
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--sandbox",
+        "danger-full-access",
+        "--model",
+        this.#model,
+        prompt,
+      ];
+      const child = this.#spawnImpl(CODEX_COMMAND, args, {
+        cwd,
+        detached: true,
+        env: {
+          ...process.env,
+          OTTO_REPO_PATH: cwd,
+          OTTO_REPO_PATHS: input.repoPaths.join(":"),
+          OTTO_TIMEOUT_MS: String(input.timeoutMs),
         },
-      );
+        stdio: ["ignore", "pipe", "pipe"],
+      });
 
       const timer = setTimeout(() => {
         timedOut = true;
@@ -104,13 +106,14 @@ export class ClaudeRunner implements AgentRunner {
       child.on("close", (code) => {
         const rawStdout = Buffer.concat(stdout).toString("utf-8");
         const rawStderr = Buffer.concat(stderr).toString("utf-8").trim();
-        const parsed = parseOttoJsonOutput(rawStdout, "claude");
+        const summary = truncateRunnerOutput(rawStdout);
+        const parsed = parseOttoJsonOutput(rawStdout, "codex");
 
         if (timedOut) {
           settle({
             success: false,
-            summary: parsed.summary,
-            error: `claude timed out after ${input.timeoutMs.toString()}ms`
+            summary,
+            error: `codex timed out after ${input.timeoutMs.toString()}ms`
           });
           return;
         }
@@ -118,8 +121,8 @@ export class ClaudeRunner implements AgentRunner {
         if (code !== 0) {
           settle({
             success: false,
-            summary: parsed.summary,
-            error: rawStderr.length > 0 ? rawStderr : `claude exited with code ${String(code)}`
+            summary,
+            error: rawStderr.length > 0 ? rawStderr : `codex exited with code ${String(code)}`
           });
           return;
         }

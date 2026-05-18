@@ -143,9 +143,9 @@ function renderGitInstructions(): string {
     "The repository is already checked out at OTTO_REPO_PATH on the correct branch.",
     "Make changes in that repository.",
     "Commit your changes with a clear message.",
-    "Do not push.",
+    "Do not push; Otto will push the branch after your run succeeds.",
     "Do not create new branches.",
-    "Do not open pull requests."
+    "Do not open pull requests or merge requests; Otto will open one when the trigger requires it."
   ].join("\n");
 }
 

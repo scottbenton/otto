@@ -16,9 +16,17 @@ const ClaudeRunnerConfigSchema = z
   })
   .strict();
 
+const CodexRunnerConfigSchema = z
+  .object({
+    type: z.literal("codex"),
+    model: z.string().min(1).default("gpt-5.4"),
+  })
+  .strict();
+
 const RunnerConfigSchema = z.discriminatedUnion("type", [
   CommandRunnerConfigSchema,
   ClaudeRunnerConfigSchema,
+  CodexRunnerConfigSchema,
 ]);
 
 export const OttoConfigSchema = z.object({
