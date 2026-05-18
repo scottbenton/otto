@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Otto must not treat its own status comments as trigger candidates. The authenticated GitHub user is still the only user allowed to trigger Otto; plain comments from that user should continue through trigger detection.\n\nThe unsafe loop comes from Otto-authored status replies, which are posted by the authenticated account and can therefore pass the author gate. Those comments must be rejected by the `otto:v1` status marker before trigger detection, for both issue comments and PR review comments.\n\nAcceptance criteria:\n- Comments from users other than the authenticated user are rejected.\n- Plain comments from the authenticated user are kept.\n- Comments containing the `otto:v1` status marker are rejected even when authored by the authenticated user.\n- Polling tests cover issue and PR comment filtering paths so status comments cannot retrigger Otto.",
+  "id": "T-048",
+  "order": 110,
+  "phase": "p1",
+  "status": "complete",
+  "title": "Filter Otto status comments out of trigger detection",
+  "type": "task"
+}
