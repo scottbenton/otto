@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-045"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-17",
+  "description": "Add `otto repo` subcommands for managing the repos list in the config file without hand-editing YAML.\n\nSubcommands:\n- `otto repo list` — print all currently watched repos with their trigger keyword (if overridden) and runner assignment\n- `otto repo add <owner/repo>` — append a repo to the watched list; accepts optional flags `--trigger <keyword>` and `--runner <runner-id>` to override per-repo defaults; validates the repo exists and the token has access before writing\n- `otto repo remove <owner/repo>` — remove a repo from the watched list; errors if not present\n\nAll subcommands read from and write to the config file in place, preserving comments and formatting where possible (use a YAML library that round-trips cleanly, or write a note that comments may be lost on write).\n\nPrint a confirmation of what changed after each mutating command.",
+  "id": "T-046",
+  "order": 120,
+  "phase": "p4",
+  "status": "open",
+  "title": "otto repo — add, remove, and list watched repos",
+  "type": "feature"
+}

@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-045"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-17",
+  "description": "Add `otto config` subcommands for reading and updating top-level daemon settings without hand-editing YAML.\n\nSubcommands:\n- `otto config show` — pretty-print the current config (redact the GitHub token)\n- `otto config get <key>` — print a single value by dot-path (e.g. `otto config get agent.default`)\n- `otto config set <key> <value>` — update a single value by dot-path and write the config file; validate the new value against the config schema before writing; print the old and new value\n\nSupported settable keys to start: `agent.default`, `pollIntervalMs`, `timeoutMs`, `triggerKeyword` (global default). Per-repo overrides are managed via `otto repo` commands.\n\nErrors clearly when the key doesn't exist or the value fails schema validation.",
+  "id": "T-047",
+  "order": 130,
+  "phase": "p4",
+  "status": "open",
+  "title": "otto config — get and set daemon settings from the CLI",
+  "type": "feature"
+}
