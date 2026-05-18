@@ -3,7 +3,7 @@ import type { AgentRunResult } from "./types.js";
 const SUMMARY_TRUNCATE_CHARS = 500;
 
 export type ParsedRunnerOutput =
-  | { ok: true; summary: string; commentSummaries?: Record<number, string> }
+  | { ok: true; summary: string; commentSummaries?: Record<number, string>; prBody?: string }
   | { ok: false; summary: string; error: string };
 
 // Matches an optional ```json or ``` fence around the content.
@@ -51,6 +51,9 @@ export function parseOttoJsonOutput(raw: string, runnerName: string): ParsedRunn
         Object.entries(parsed.commentSummaries).map(([key, value]) => [Number(key), value])
       );
     }
+    if (parsed.prBody !== undefined) {
+      result.prBody = parsed.prBody;
+    }
     return result;
   } catch {
     return {
@@ -73,15 +76,19 @@ export function toAgentRunResult(parsed: Extract<ParsedRunnerOutput, { ok: true 
   if (parsed.commentSummaries !== undefined) {
     result.commentSummaries = parsed.commentSummaries;
   }
+  if (parsed.prBody !== undefined) {
+    result.prBody = parsed.prBody;
+  }
   return result;
 }
 
 function isStructuredOutput(
   value: unknown
-): value is { summary: string; commentSummaries?: Record<string, string> } {
+): value is { summary: string; commentSummaries?: Record<string, string>; prBody?: string } {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
   if (typeof record.summary !== "string") return false;
+  if (record.prBody !== undefined && typeof record.prBody !== "string") return false;
   if (record.commentSummaries === undefined) return true;
   if (typeof record.commentSummaries !== "object" || record.commentSummaries === null) {
     return false;

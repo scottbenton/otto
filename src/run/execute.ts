@@ -154,13 +154,17 @@ export async function executeRun(
 
     let pullRequestUrl: string | undefined;
     if (ctx.sourceType === "issue_comment") {
-      const pr = await createPrForIssueTask(github, {
+      const prInput: Parameters<typeof createPrForIssueTask>[1] = {
         owner: ctx.owner,
         repo: ctx.repo,
         issueNumber: ctx.number,
         issueTitle: ctx.issue.title,
         branch: pushed.branch,
-      });
+      };
+      if (result.prBody !== undefined) {
+        prInput.agentPrBody = result.prBody;
+      }
+      const pr = await createPrForIssueTask(github, prInput);
       pullRequestUrl = pr.htmlUrl;
     }
 

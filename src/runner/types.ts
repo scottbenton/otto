@@ -18,6 +18,7 @@ export type AgentRunResult = {
   success: boolean;
   summary: string;
   commentSummaries?: Record<number, string>;
+  prBody?: string;
   branch?: string;
   commits?: string[];
   error?: string;
