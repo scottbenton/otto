@@ -232,7 +232,7 @@ process.stdout.write(JSON.stringify({
     });
   });
 
-  it("returns failure with truncated stdout when JSON parsing fails", async () => {
+  it("returns success with truncated stdout when JSON parsing fails", async () => {
     const long = "x".repeat(600);
     await writeFakeClaude(`
 process.stdout.write("${long}");
@@ -244,8 +244,8 @@ process.stdout.write("${long}");
 
     const result = await runner.run(makeInput());
 
-    expect(result.success).toBe(false);
-    expect(result.error).toBe("claude output was not valid JSON");
+    expect(result.success).toBe(true);
+    expect(result.error).toBeUndefined();
     expect(result.summary).toHaveLength(501);
     expect(result.summary.endsWith("…")).toBe(true);
   });
