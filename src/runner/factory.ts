@@ -1,6 +1,7 @@
 import type { RunnerConfig } from "../config/index.js";
 import { ClaudeRunner } from "./claude.js";
 import { CommandRunner } from "./command.js";
+import { CodexRunner } from "./codex.js";
 import type { AgentRunner } from "./types.js";
 
 export function createAgentRunner(id: string, config: RunnerConfig): AgentRunner {
@@ -12,6 +13,9 @@ export function createAgentRunner(id: string, config: RunnerConfig): AgentRunner
         id,
         model: config.model
       });
+    }
+    case "codex": {
+      return new CodexRunner({ id, model: config.model });
     }
   }
 }

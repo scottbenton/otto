@@ -192,6 +192,56 @@ describe("OttoConfigSchema", () => {
     expect(result.agent.runners.claude).toEqual(config.agent.runners.claude);
   });
 
+  it("accepts a codex runner with defaults", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "codex",
+        runners: {
+          codex: { type: "codex" },
+        },
+      },
+    };
+    const result = OttoConfigSchema.parse(config);
+    expect(result.agent.runners.codex).toEqual({
+      type: "codex",
+      model: "gpt-5.4",
+    });
+  });
+
+  it("accepts a codex runner with a custom model", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "codex",
+        runners: {
+          codex: {
+            type: "codex",
+            model: "gpt-5.4",
+          },
+        },
+      },
+    };
+    const result = OttoConfigSchema.parse(config);
+    expect(result.agent.runners.codex).toEqual(config.agent.runners.codex);
+  });
+
+  it("rejects codex runner auth internals in config", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "codex",
+        runners: {
+          codex: {
+            type: "codex",
+            apiKeyEnvVar: "OPENAI_API_KEY",
+          },
+        },
+      },
+    };
+    expect(() => OttoConfigSchema.parse(config)).toThrow();
+  });
+
   it("rejects claude runner internals in config", () => {
     const config = {
       ...validConfig,

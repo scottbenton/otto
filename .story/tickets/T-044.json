@@ -1,14 +1,12 @@
 {
-  "blockedBy": [
-    "T-028"
-  ],
-  "completedDate": null,
+  "blockedBy": [],
+  "completedDate": "2026-05-17",
   "createdDate": "2026-05-16",
   "description": "Add a built-in codex runner type. Extend RunnerConfigSchema with: type: 'codex', optional model override, optional API key env var name (default: OPENAI_API_KEY). Implement CodexRunner in src/runner/codex.ts implementing AgentRunner.\n\nInvoke as:\n\n  codex \"<rendered prompt>\"\n\nwith OTTO_REPO_PATH as cwd and the API key env var in the environment. Capture stdout directly as plain text — Codex CLI does not support a structured output mode, so supportsStructuredOutput is always false for this runner. Summary = stdout truncated to 500 chars.\n\nShare the prompt rendering logic with T-043 via src/runner/prompt.ts (same context-to-prompt function, same sourceType framing, same lineContext rendering, same git instructions). Omit the structured output / comment ID sections of the prompt since Codex doesn't support that path.\n\nThe prompt must cover the same points as T-043 items 1–7 (framing, repo context, reviews, comment thread, line contexts, git instructions), minus item 6 (comment IDs for structured output) and item 8 (plain-text summary instruction, which can be included but Codex output is used as-is regardless).\n\nConfig env var for the API key should be configurable (default: OPENAI_API_KEY). Update config schema, loader, and runner factory so type: 'codex' instantiates CodexRunner.",
   "id": "T-044",
   "order": 120,
   "phase": "p3",
-  "status": "open",
+  "status": "complete",
   "title": "Built-in Codex runner",
   "type": "task"
 }
