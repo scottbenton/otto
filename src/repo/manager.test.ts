@@ -264,7 +264,9 @@ describe("RepoManager.prepareWorktree()", () => {
     expect(store.getWorktree("owner/repo#123")).toBeUndefined();
   });
 
-  it("removes worktree state on release without deleting the directory", async () => {
+  it("removes worktree directory and state on release", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    await mkdir(checkoutPath, { recursive: true });
     const worktreePath = join(worktreesDir, "owner-repo-123");
     await mkdir(worktreePath, { recursive: true });
     await store.setWorktree("owner/repo#123", {
@@ -282,7 +284,24 @@ describe("RepoManager.prepareWorktree()", () => {
     await manager.releaseWorktree("owner/repo#123");
 
     expect(store.getWorktree("owner/repo#123")).toBeUndefined();
-    await expect(mkdir(worktreePath)).rejects.toThrow();
+    expect(calls).toContainEqual({
+      args: ["worktree", "remove", "--force", worktreePath],
+      options: { cwd: checkoutPath, allowNonZeroExit: true },
+    });
+  });
+
+  it("clears worktree state on release even when no state entry exists", async () => {
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createRunner()
+    });
+
+    await manager.releaseWorktree("owner/repo#999");
+
+    expect(store.getWorktree("owner/repo#999")).toBeUndefined();
+    expect(calls).toHaveLength(0);
   });
 
   it("rejects a non-directory at the computed worktree path", async () => {

@@ -138,6 +138,14 @@ export class RepoManager {
   }
 
   async releaseWorktree(targetKey: string): Promise<void> {
+    const entry = this.#stateStore.getWorktree(targetKey);
+    if (entry !== undefined) {
+      const repoCheckoutPath = this.#checkoutPath(entry.repo);
+      await this.#gitRunner(
+        ["worktree", "remove", "--force", entry.path],
+        { cwd: repoCheckoutPath, allowNonZeroExit: true },
+      );
+    }
     await this.#stateStore.removeWorktree(targetKey);
   }
 
