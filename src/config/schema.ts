@@ -2,10 +2,24 @@ import { z } from "zod";
 
 const repoSlugPattern = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
 
-const RunnerConfigSchema = z.object({
-  type: z.literal("command"),
-  command: z.string().min(1),
-});
+const CommandRunnerConfigSchema = z
+  .object({
+    type: z.literal("command"),
+    command: z.string().min(1),
+  })
+  .strict();
+
+const ClaudeRunnerConfigSchema = z
+  .object({
+    type: z.literal("claude"),
+    model: z.string().min(1).default("claude-sonnet-4-5"),
+  })
+  .strict();
+
+const RunnerConfigSchema = z.discriminatedUnion("type", [
+  CommandRunnerConfigSchema,
+  ClaudeRunnerConfigSchema,
+]);
 
 export const OttoConfigSchema = z.object({
   otto: z.object({

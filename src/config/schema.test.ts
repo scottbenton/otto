@@ -157,4 +157,57 @@ describe("OttoConfigSchema", () => {
     const result = OttoConfigSchema.parse(config);
     expect(Object.keys(result.agent.runners)).toHaveLength(2);
   });
+
+  it("accepts a claude runner with defaults", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "claude",
+        runners: {
+          claude: { type: "claude" },
+        },
+      },
+    };
+    const result = OttoConfigSchema.parse(config);
+    expect(result.agent.runners.claude).toEqual({
+      type: "claude",
+      model: "claude-sonnet-4-5",
+    });
+  });
+
+  it("accepts a claude runner with a custom model", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "claude",
+        runners: {
+          claude: {
+            type: "claude",
+            model: "claude-sonnet-4-5",
+          },
+        },
+      },
+    };
+    const result = OttoConfigSchema.parse(config);
+    expect(result.agent.runners.claude).toEqual(config.agent.runners.claude);
+  });
+
+  it("rejects claude runner internals in config", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "claude",
+        runners: {
+          claude: {
+            type: "claude",
+            model: "claude-sonnet-4-5",
+            systemPrompt: "custom prompt",
+            supportsStructuredOutput: true,
+            command: "claude-wrapper",
+          },
+        },
+      },
+    };
+    expect(() => OttoConfigSchema.parse(config)).toThrow();
+  });
 });

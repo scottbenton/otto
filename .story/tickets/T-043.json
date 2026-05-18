@@ -1,14 +1,12 @@
 {
-  "blockedBy": [
-    "T-028"
-  ],
-  "completedDate": null,
+  "blockedBy": [],
+  "completedDate": "2026-05-17",
   "createdDate": "2026-05-16",
   "description": "Add a built-in claude runner type. Extend RunnerConfigSchema with: type: 'claude', model (default: 'claude-opus-4-7'), optional systemPrompt override, supportsStructuredOutput flag (default: false).\n\nImplement ClaudeRunner in src/runner/claude.ts implementing AgentRunner. Invoke as:\n\n  claude -p \"<rendered prompt>\" --model <model>\n\nfrom OTTO_REPO_PATH as cwd. Do NOT use --output-format json — that wraps Claude's response in a Claude Code envelope incompatible with Otto's result parsing. Capture stdout directly.\n\nOutput handling:\n- supportsStructuredOutput: false (default): truncate stdout to 500 chars, use as summary.\n- supportsStructuredOutput: true: the prompt must instruct Claude to output ONLY a JSON object as its entire response: { \"summary\": \"...\", \"commentSummaries\": { \"<commentId>\": \"...\" } }. Parse stdout directly as that schema. Fall back to truncated plain text if parsing fails.\n\nPrompt rendering (shared with T-044 via src/runner/prompt.ts). The prompt must cover:\n\n1. Framing by sourceType:\n   - issue_comment: implement the requested change from scratch\n   - pr_conversation_comment: address a review comment on an existing PR\n   - pr_line_comment: fix specific lines of code that were commented on\n\n2. Repository context: owner/repo, issue/PR number, title, body, labels, state, PR base/head branches if present.\n\n3. Reviews: list any PR reviews (author, state, body) so the agent understands the broader review context.\n\n4. Comment thread: render comments[] in order (author, body).\n\n5. Line contexts (pr_line_comment only): for each entry in lineContexts:\n   - Current (outdated: false): render file path, the diff patch, and the full current file content.\n   - Outdated (outdated: true): render file path and clarifyMessage — the agent should explain the situation rather than guess.\n\n6. When supportsStructuredOutput: true: list each trigger comment ID explicitly so Claude can key commentSummaries correctly, e.g. \"Comment ID 84729 (alice): 'Fix the null check'\". The agent must use those IDs as keys in commentSummaries.\n\n7. Git instructions: the repo is already checked out at OTTO_REPO_PATH on the correct branch. Commit your changes with a clear message. Do NOT push, do NOT create new branches, do NOT open PRs.\n\n8. Output instructions (supportsStructuredOutput: false): end your response with a brief plain-text summary of what you changed — no secrets, no internal file paths, suitable for posting publicly as a GitHub comment.\n\nUpdate config schema, loader, and runner factory so type: 'claude' instantiates ClaudeRunner.",
   "id": "T-043",
   "order": 110,
   "phase": "p3",
-  "status": "open",
+  "status": "complete",
   "title": "Built-in Claude CLI runner with prompt template",
   "type": "task"
 }

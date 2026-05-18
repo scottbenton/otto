@@ -12,7 +12,7 @@ import { getTriggerTargetKey } from "./polling/dispatch.js";
 import { recoverStaleComments } from "./polling/recovery.js";
 import { detectTrigger } from "./polling/trigger.js";
 import { RepoManager } from "./repo/index.js";
-import { CommandRunner } from "./runner/command.js";
+import { createAgentRunner } from "./runner/factory.js";
 import { executeRun } from "./run/execute.js";
 import { acquireLock } from "./state/index.js";
 import { StateStore } from "./state/store.js";
@@ -124,10 +124,7 @@ async function main(): Promise<void> {
     stateStore: state,
   });
 
-  const agentRunner = new CommandRunner({
-    id: config.agent.default,
-    command: defaultRunnerConfig.command,
-  });
+  const agentRunner = createAgentRunner(config.agent.default, defaultRunnerConfig);
 
   const orchestrator = new DispatchOrchestrator({
     windowMs: config.otto.debounceSeconds * 1000,
