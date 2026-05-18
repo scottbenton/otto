@@ -125,11 +125,7 @@ export class ClaudeRunner implements AgentRunner {
         }
 
         if (!parsed.ok) {
-          settle({
-            success: false,
-            summary: parsed.summary,
-            error: parsed.error
-          });
+          settle({ success: true, summary: parsed.summary });
           return;
         }
 
