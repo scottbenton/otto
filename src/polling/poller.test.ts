@@ -63,19 +63,19 @@ function makeLogger(): OttoLogger {
 
 function makeStatusComment(id: number): RawComment {
   return {
-    ...makeComment(id, { login: "bob" }),
+    ...makeComment(id, { login: "alice" }),
     body: "<!-- otto:v1 status run=abc machine=xyz source=s -->\nStatus: running",
   };
 }
 
 describe("filterComments()", () => {
-  it("keeps comments from other users", () => {
-    const comment = makeComment(1, { login: "bob" });
+  it("keeps comments from the authenticated user", () => {
+    const comment = makeComment(1);
     expect(filterComments([comment], "alice", undefined)).toEqual([comment]);
   });
 
-  it("discards comments from the authenticated user (Otto's own comments)", () => {
-    const comment = makeComment(1, { login: "alice" });
+  it("discards comments from other users", () => {
+    const comment = makeComment(1, { login: "bob" });
     expect(filterComments([comment], "alice", undefined)).toHaveLength(0);
   });
 
@@ -84,29 +84,29 @@ describe("filterComments()", () => {
     expect(filterComments([comment], "alice", undefined)).toHaveLength(0);
   });
 
-  it("discards otto status comments by header marker even if from another user", () => {
+  it("discards otto status comments by header marker even when posted by the authenticated user", () => {
     const comment = makeStatusComment(1);
     expect(filterComments([comment], "alice", undefined)).toHaveLength(0);
   });
 
   it("keeps comments created at or after lastPolled", () => {
-    const comment = makeComment(1, { login: "bob", createdAt: "2024-06-01T12:00:00.000Z" });
+    const comment = makeComment(1, { createdAt: "2024-06-01T12:00:00.000Z" });
     expect(filterComments([comment], "alice", "2024-06-01T12:00:00.000Z")).toEqual([comment]);
   });
 
   it("discards comments created before lastPolled", () => {
-    const comment = makeComment(1, { login: "bob", createdAt: "2024-06-01T11:59:59.000Z" });
+    const comment = makeComment(1, { createdAt: "2024-06-01T11:59:59.000Z" });
     expect(filterComments([comment], "alice", "2024-06-01T12:00:00.000Z")).toHaveLength(0);
   });
 
   it("skips the created_at gate when lastPolled is undefined", () => {
-    const old = makeComment(1, { login: "bob", createdAt: "2020-01-01T00:00:00Z" });
+    const old = makeComment(1, { createdAt: "2020-01-01T00:00:00Z" });
     expect(filterComments([old], "alice", undefined)).toEqual([old]);
   });
 
   it("applies author gate before created_at gate", () => {
-    const own = makeComment(1, { login: "alice", createdAt: "2099-01-01T00:00:00Z" });
-    expect(filterComments([own], "alice", undefined)).toHaveLength(0);
+    const foreign = makeComment(1, { login: "bob", createdAt: "2099-01-01T00:00:00Z" });
+    expect(filterComments([foreign], "alice", undefined)).toHaveLength(0);
   });
 });
 
@@ -144,10 +144,7 @@ describe("pollRepo()", () => {
   });
 
   it("returns only new comment IDs not in seenCommentIds", async () => {
-    const client = makeClient(
-      [makeComment(1, { login: "bob" }), makeComment(2, { login: "bob" })],
-      [makeComment(3, { login: "bob" })],
-    );
+    const client = makeClient([makeComment(1), makeComment(2)], [makeComment(3)]);
     const state = makeState({ seenIds: [1] });
 
     const result = await pollRepo(client, state, "owner/repo", "alice");
@@ -194,7 +191,7 @@ describe("pollRepo()", () => {
     expect(result).toHaveLength(0);
   });
 
-  it("filters out Otto's own comments before returning", async () => {
+  it("filters out comments from other users before returning", async () => {
     const own = makeComment(1, { login: "alice" });
     const foreign = makeComment(2, { login: "bob" });
     const client = makeClient([own, foreign], []);
@@ -202,11 +199,11 @@ describe("pollRepo()", () => {
 
     const result = await pollRepo(client, state, "owner/repo", "alice");
 
-    expect(result.map((c) => c.id)).toEqual([2]);
+    expect(result.map((c) => c.id)).toEqual([1]);
   });
 
   it("filters out otto status comments before returning", async () => {
-    const trigger = makeComment(1, { login: "bob" });
+    const trigger = makeComment(1, { login: "alice" });
     const status = makeStatusComment(2);
     const client = makeClient([trigger, status], []);
     const state = makeState();
@@ -217,8 +214,8 @@ describe("pollRepo()", () => {
   });
 
   it("filters out comments with created_at before lastPolled", async () => {
-    const fresh = makeComment(1, { login: "bob", createdAt: "2024-06-01T12:00:10.000Z" });
-    const stale = makeComment(2, { login: "bob", createdAt: "2024-06-01T11:59:58.000Z" });
+    const fresh = makeComment(1, { createdAt: "2024-06-01T12:00:10.000Z" });
+    const stale = makeComment(2, { createdAt: "2024-06-01T11:59:58.000Z" });
     const client = makeClient([fresh, stale], []);
     const state = makeState({ lastPolled: "2024-06-01T12:00:00.000Z" });
 
@@ -229,7 +226,7 @@ describe("pollRepo()", () => {
 
   it("logs poll tick start and completion at debug level", async () => {
     const logger = makeLogger();
-    const client = makeClient([makeComment(1, { login: "bob" })], []);
+    const client = makeClient([makeComment(1)], []);
     const state = makeState();
 
     await pollRepo(client, state, "owner/repo", "alice", logger);
@@ -249,10 +246,10 @@ describe("pollRepo()", () => {
 
   it("logs aggregate filtered comment counts without per-comment noise", async () => {
     const logger = makeLogger();
-    const fresh = makeComment(1, { login: "bob", createdAt: "2024-06-01T12:00:10.000Z" });
-    const own = makeComment(2, { login: "alice", createdAt: "2024-06-01T12:00:10.000Z" });
-    const stale = makeComment(3, { login: "bob", createdAt: "2024-06-01T11:59:58.000Z" });
-    const client = makeClient([fresh, own, stale], []);
+    const fresh = makeComment(1, { login: "alice", createdAt: "2024-06-01T12:00:10.000Z" });
+    const foreign = makeComment(2, { login: "bob", createdAt: "2024-06-01T12:00:10.000Z" });
+    const stale = makeComment(3, { login: "alice", createdAt: "2024-06-01T11:59:58.000Z" });
+    const client = makeClient([fresh, foreign, stale], []);
     const state = makeState({ lastPolled: "2024-06-01T12:00:00.000Z" });
 
     await pollRepo(client, state, "owner/repo", "alice", logger);
@@ -275,7 +272,7 @@ describe("pollRepo()", () => {
 
 describe("runPollingTick()", () => {
   it("returns a map of repo -> new comments", async () => {
-    const comment = makeComment(99, { login: "bob" });
+    const comment = makeComment(99);
     const client = makeClient([comment], []);
     const state = makeState();
 
@@ -285,7 +282,7 @@ describe("runPollingTick()", () => {
   });
 
   it("still returns successful repos when one repo fails", async () => {
-    const comment = makeComment(1, { login: "bob" });
+    const comment = makeComment(1);
     const client = {
       paginateAll: vi.fn()
         .mockRejectedValueOnce(new Error("network error"))

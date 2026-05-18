@@ -44,7 +44,7 @@ function filterCommentsWithStats(
   const filtered: RawComment[] = [];
 
   for (const comment of comments) {
-    if (comment.user == null || comment.user.login === authenticatedUser) {
+    if (comment.user?.login !== authenticatedUser) {
       stats.ownComment++;
       continue;
     }
