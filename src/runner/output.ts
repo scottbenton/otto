@@ -6,6 +6,21 @@ export type ParsedRunnerOutput =
   | { ok: true; summary: string; commentSummaries?: Record<number, string> }
   | { ok: false; summary: string; error: string };
 
+// Matches an optional ```json or ``` fence around the content.
+const FENCE_RE = /^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/;
+
+// Matches the first {...} block in a string, for extracting JSON from prose.
+const JSON_OBJECT_RE = /\{[\s\S]*\}/;
+
+function extractJsonCandidate(raw: string): string {
+  const trimmed = raw.trim();
+  const fenceMatch = FENCE_RE.exec(trimmed);
+  if (fenceMatch?.[1] !== undefined) return fenceMatch[1].trim();
+  const objectMatch = JSON_OBJECT_RE.exec(trimmed);
+  if (objectMatch !== null) return objectMatch[0];
+  return trimmed;
+}
+
 export function parseOttoJsonOutput(raw: string, runnerName: string): ParsedRunnerOutput {
   const trimmed = raw.trim();
   const fallbackSummary = truncate(trimmed, SUMMARY_TRUNCATE_CHARS);
@@ -18,7 +33,7 @@ export function parseOttoJsonOutput(raw: string, runnerName: string): ParsedRunn
   }
 
   try {
-    const parsed = JSON.parse(trimmed) as unknown;
+    const parsed = JSON.parse(extractJsonCandidate(trimmed)) as unknown;
     if (!isStructuredOutput(parsed)) {
       return {
         ok: false,
