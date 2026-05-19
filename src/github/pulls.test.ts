@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COMMENT_FOOTER } from "../polling/format.js";
 import { GitHubClient } from "./client.js";
 import { createPrForIssueTask } from "./pulls.js";
 
@@ -17,8 +18,8 @@ function mockFetch(responses: MockResponse[]) {
     return Promise.resolve(
       new Response(resp.body !== undefined ? JSON.stringify(resp.body) : null, {
         status: resp.status,
-        headers: { "content-type": "application/json", ...resp.headers },
-      }),
+        headers: { "content-type": "application/json", ...resp.headers }
+      })
     );
   });
 }
@@ -28,13 +29,13 @@ const DEFAULT_INPUT = {
   repo: "repo",
   issueNumber: 7,
   issueTitle: "Fix the bug",
-  branch: "otto/issue-7",
+  branch: "otto/issue-7"
 } as const;
 
 const REPO_RESPONSE = { status: 200, body: { default_branch: "main" } };
 const PR_RESPONSE = {
   status: 201,
-  body: { number: 42, html_url: "https://github.com/owner/repo/pull/42" },
+  body: { number: 42, html_url: "https://github.com/owner/repo/pull/42" }
 };
 
 describe("createPrForIssueTask", () => {
@@ -86,7 +87,63 @@ describe("createPrForIssueTask", () => {
 
     const [, init] = fake.mock.calls[1] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
-    expect(body.body).toBe("Closes #7");
+    expect(body.body).toBe(`Closes #7${COMMENT_FOOTER}`);
+  });
+
+  it("uses the agent PR body when provided", async () => {
+    const fake = mockFetch([REPO_RESPONSE, PR_RESPONSE]);
+    vi.stubGlobal("fetch", fake);
+
+    await createPrForIssueTask(client, {
+      ...DEFAULT_INPUT,
+      agentPrBody: "## What was done\n\nFixed the bug.\n\nCloses #7"
+    });
+
+    const [, init] = fake.mock.calls[1] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.body).toBe(`## What was done\n\nFixed the bug.\n\nCloses #7${COMMENT_FOOTER}`);
+  });
+
+  it("does not duplicate the Otto attribution footer when provided", async () => {
+    const fake = mockFetch([REPO_RESPONSE, PR_RESPONSE]);
+    vi.stubGlobal("fetch", fake);
+
+    await createPrForIssueTask(client, {
+      ...DEFAULT_INPUT,
+      agentPrBody: `## What was done\n\nFixed the bug.\n\nCloses #7${COMMENT_FOOTER}`
+    });
+
+    const [, init] = fake.mock.calls[1] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.body).toBe(`## What was done\n\nFixed the bug.\n\nCloses #7${COMMENT_FOOTER}`);
+  });
+
+  it("appends the closing issue link as the final PR body line", async () => {
+    const fake = mockFetch([REPO_RESPONSE, PR_RESPONSE]);
+    vi.stubGlobal("fetch", fake);
+
+    await createPrForIssueTask(client, {
+      ...DEFAULT_INPUT,
+      agentPrBody: "## What was done\n\nFixed the bug."
+    });
+
+    const [, init] = fake.mock.calls[1] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.body).toBe(`## What was done\n\nFixed the bug.\n\nCloses #7${COMMENT_FOOTER}`);
+  });
+
+  it("falls back to the closing issue link when agent PR body is blank", async () => {
+    const fake = mockFetch([REPO_RESPONSE, PR_RESPONSE]);
+    vi.stubGlobal("fetch", fake);
+
+    await createPrForIssueTask(client, {
+      ...DEFAULT_INPUT,
+      agentPrBody: "   "
+    });
+
+    const [, init] = fake.mock.calls[1] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.body).toBe(`Closes #7${COMMENT_FOOTER}`);
   });
 
   it("sets head to the pushed branch", async () => {
@@ -101,10 +158,7 @@ describe("createPrForIssueTask", () => {
   });
 
   it("uses the repo default branch as base", async () => {
-    const fake = mockFetch([
-      { status: 200, body: { default_branch: "develop" } },
-      PR_RESPONSE,
-    ]);
+    const fake = mockFetch([{ status: 200, body: { default_branch: "develop" } }, PR_RESPONSE]);
     vi.stubGlobal("fetch", fake);
 
     await createPrForIssueTask(client, DEFAULT_INPUT);

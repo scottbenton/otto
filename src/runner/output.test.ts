@@ -5,7 +5,11 @@ import { parseOttoJsonOutput } from "./output.js";
 const VALID = JSON.stringify({ summary: "did the thing" });
 const VALID_WITH_SUMMARIES = JSON.stringify({
   summary: "did the thing",
-  commentSummaries: { "42": "fixed line" },
+  commentSummaries: { "42": "fixed line" }
+});
+const VALID_WITH_PR_BODY = JSON.stringify({
+  summary: "did the thing",
+  prBody: "## What was done\n\nFixed the bug.\n\nCloses #7"
 });
 
 describe("parseOttoJsonOutput()", () => {
@@ -19,7 +23,25 @@ describe("parseOttoJsonOutput()", () => {
     expect(result).toEqual({
       ok: true,
       summary: "did the thing",
-      commentSummaries: { 42: "fixed line" },
+      commentSummaries: { 42: "fixed line" }
+    });
+  });
+
+  it("parses optional PR body output", () => {
+    const result = parseOttoJsonOutput(VALID_WITH_PR_BODY, "claude");
+    expect(result).toEqual({
+      ok: true,
+      summary: "did the thing",
+      prBody: "## What was done\n\nFixed the bug.\n\nCloses #7"
+    });
+  });
+
+  it("rejects non-string PR body output", () => {
+    const result = parseOttoJsonOutput('{"summary":"ok","prBody":123}', "claude");
+    expect(result).toEqual({
+      ok: false,
+      summary: '{"summary":"ok","prBody":123}',
+      error: "claude output did not match Otto JSON schema"
     });
   });
 
@@ -46,7 +68,7 @@ describe("parseOttoJsonOutput()", () => {
     expect(result).toEqual({
       ok: false,
       summary: "",
-      error: "claude output was empty; expected Otto JSON",
+      error: "claude output was empty; expected Otto JSON"
     });
   });
 
@@ -61,7 +83,7 @@ describe("parseOttoJsonOutput()", () => {
     expect(result).toEqual({
       ok: false,
       summary: '{"wrong": "shape"}',
-      error: "claude output did not match Otto JSON schema",
+      error: "claude output did not match Otto JSON schema"
     });
   });
 

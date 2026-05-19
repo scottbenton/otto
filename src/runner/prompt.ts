@@ -150,11 +150,23 @@ function renderGitInstructions(): string {
 }
 
 function renderOutputInstructions(input: AgentRunInput): string {
+  const prBodyInstruction =
+    input.context.sourceType === "issue_comment"
+      ? [
+          'Include "prBody" when the task changes code and Otto will open a pull request.',
+          "The prBody must be markdown suitable for a GitHub pull request description.",
+          'Use sections such as "What was done", "Key changes", and "Testing notes".',
+          `End prBody with this exact final content line: Closes #${input.context.number.toString()}.`,
+          "Do not add Otto attribution; Otto appends its own attribution footer."
+        ]
+      : ['Do not include "prBody"; this task is already associated with an existing pull request.'];
+
   return [
     "Output only a JSON object as your entire response, with no Markdown fence or surrounding prose.",
     'Use this exact shape: { "summary": "...", "commentSummaries": { "<commentId>": "..." } }.',
-    "The summary and commentSummaries values must be suitable for posting publicly as GitHub comments.",
+    "The summary, commentSummaries, and prBody values must be suitable for posting publicly on GitHub.",
     "Do not include secrets, internal file paths, raw logs, or token values.",
+    ...prBodyInstruction,
     "Use these trigger comment IDs as keys in commentSummaries:",
     ...input.context.comments.map(
       (comment) =>
