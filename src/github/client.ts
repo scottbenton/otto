@@ -18,6 +18,22 @@ type RequestOptions = {
   body?: unknown;
 };
 
+type RetryOptions = {
+  maxRetries?: number;
+  baseDelayMs?: number;
+  sleep?: (delayMs: number) => Promise<void>;
+  random?: () => number;
+};
+
+type RequiredRetryOptions = Required<RetryOptions>;
+
+const DEFAULT_RETRY_OPTIONS: RequiredRetryOptions = {
+  maxRetries: 3,
+  baseDelayMs: 1_000,
+  sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+  random: Math.random,
+};
+
 function parseNextLink(linkHeader: string): string | undefined {
   for (const part of linkHeader.split(",")) {
     const match = /^<([^>]+)>;\s*rel="next"/.exec(part.trim());
@@ -75,13 +91,46 @@ async function extractErrorMessage(response: Response): Promise<string> {
   return `HTTP ${String(response.status)}`;
 }
 
+function clampDelay(delayMs: number): number {
+  return Number.isFinite(delayMs) ? Math.max(0, delayMs) : 0;
+}
+
+function delayForRetry(
+  error: GitHubError | NetworkError,
+  retryCount: number,
+  retryOptions: RequiredRetryOptions,
+): number | undefined {
+  if (error instanceof RateLimitError) {
+    return clampDelay(error.resetAt.getTime() - Date.now());
+  }
+
+  if (error instanceof SecondaryRateLimitError) {
+    return clampDelay(error.retryAfterSeconds * 1_000);
+  }
+
+  if (error instanceof GitHubError && error.statusCode >= 500) {
+    const exponentialDelay = retryOptions.baseDelayMs * 2 ** retryCount;
+    return clampDelay(
+      exponentialDelay + retryOptions.random() * retryOptions.baseDelayMs,
+    );
+  }
+
+  return undefined;
+}
+
 export class GitHubClient {
   readonly #token: string;
   readonly #baseUrl: string;
+  readonly #retryOptions: RequiredRetryOptions;
 
-  constructor(token: string, baseUrl = "https://api.github.com") {
+  constructor(
+    token: string,
+    baseUrl = "https://api.github.com",
+    retryOptions?: RetryOptions,
+  ) {
     this.#token = token;
     this.#baseUrl = baseUrl;
+    this.#retryOptions = { ...DEFAULT_RETRY_OPTIONS, ...retryOptions };
   }
 
   #buildHeaders(): Record<string, string> {
@@ -97,6 +146,32 @@ export class GitHubClient {
     return new URL(path.startsWith("http") ? path : `${this.#baseUrl}${path}`);
   }
 
+  async #fetchWithRetry(url: URL, init?: RequestInit): Promise<Response> {
+    for (let retryCount = 0; ; retryCount++) {
+      let response: Response;
+      try {
+        response = await fetch(url.toString(), init);
+      } catch (err) {
+        throw new NetworkError(`Network error: ${String(err)}`, { cause: err });
+      }
+
+      if (response.ok) return response;
+
+      const message = await extractErrorMessage(response);
+      const error = classifyError(response.status, response.headers, message);
+      const delayMs = delayForRetry(error, retryCount, this.#retryOptions);
+
+      if (
+        delayMs === undefined ||
+        retryCount >= this.#retryOptions.maxRetries
+      ) {
+        throw error;
+      }
+
+      await this.#retryOptions.sleep(delayMs);
+    }
+  }
+
   async request<T>(path: string, options?: RequestOptions): Promise<T> {
     const url = this.#resolveUrl(path);
     if (options?.params) {
@@ -105,23 +180,13 @@ export class GitHubClient {
       }
     }
 
-    let response: Response;
-    try {
-      response = await fetch(url.toString(), {
-        method: options?.method ?? "GET",
-        headers: this.#buildHeaders(),
-        ...(options?.body !== undefined
-          ? { body: JSON.stringify(options.body) }
-          : {}),
-      });
-    } catch (err) {
-      throw new NetworkError(`Network error: ${String(err)}`, { cause: err });
-    }
-
-    if (!response.ok) {
-      const message = await extractErrorMessage(response);
-      throw classifyError(response.status, response.headers, message);
-    }
+    const response = await this.#fetchWithRetry(url, {
+      method: options?.method ?? "GET",
+      headers: this.#buildHeaders(),
+      ...(options?.body !== undefined
+        ? { body: JSON.stringify(options.body) }
+        : {}),
+    });
 
     return response.json() as Promise<T>;
   }
@@ -142,17 +207,9 @@ export class GitHubClient {
         isFirst = false;
       }
 
-      let response: Response;
-      try {
-        response = await fetch(url.toString(), { headers: this.#buildHeaders() });
-      } catch (err) {
-        throw new NetworkError(`Network error: ${String(err)}`, { cause: err });
-      }
-
-      if (!response.ok) {
-        const message = await extractErrorMessage(response);
-        throw classifyError(response.status, response.headers, message);
-      }
+      const response = await this.#fetchWithRetry(url, {
+        headers: this.#buildHeaders(),
+      });
 
       const items = (await response.json()) as T[];
       for (const item of items) {
