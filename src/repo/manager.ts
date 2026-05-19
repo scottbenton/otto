@@ -74,7 +74,7 @@ export type PushBranchResult = {
 };
 
 export type CleanupOptions = {
-  force?: boolean;
+  dryRun?: boolean;
 };
 
 export type CleanupWorktreeReason = "remote-deleted" | "merged";
@@ -254,7 +254,7 @@ export class RepoManager {
 
         if (reason === undefined) continue;
 
-        if (options.force === true) {
+        if (options.dryRun !== true) {
           await this.#gitRunner(["worktree", "remove", "--force", worktree.path], {
             cwd: repoPath,
             allowNonZeroExit: true,
@@ -268,7 +268,7 @@ export class RepoManager {
           path: worktree.path,
           branch: worktree.branch,
           reason,
-          deleted: options.force === true,
+          deleted: options.dryRun !== true,
         });
       }
     }
@@ -292,10 +292,10 @@ export class RepoManager {
         .map((branch) => branch.slice("origin/".length));
 
       for (const branch of mergedBranches) {
-        if (input.force === true) {
+        if (input.dryRun !== true) {
           await this.#gitRunner(["push", "origin", "--delete", branch], { cwd: repoPath });
         }
-        branches.push({ repo, branch, deleted: input.force === true });
+        branches.push({ repo, branch, deleted: input.dryRun !== true });
       }
     }
 

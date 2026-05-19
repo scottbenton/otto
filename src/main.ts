@@ -23,7 +23,7 @@ const SHUTDOWN_TIMEOUT_MS = 30_000;
 
 type CleanupCommand = {
   target: "worktrees" | "branches";
-  force: boolean;
+  dryRun: boolean;
 };
 
 type ParsedArgs = {
@@ -61,27 +61,27 @@ function parseArgs(argv: string[]): ParsedArgs | null {
         process.stderr.write("Error: cleanup requires 'worktrees' or 'branches'\n");
         return null;
       }
-      cleanup = { target, force: false };
+      cleanup = { target, dryRun: false };
       i++;
-    } else if (arg === "--force") {
+    } else if (arg === "--dry-run") {
       if (cleanup === undefined) {
-        process.stderr.write("Error: --force is only valid with cleanup commands\n");
+        process.stderr.write("Error: --dry-run is only valid with cleanup commands\n");
         return null;
       }
-      cleanup = { ...cleanup, force: true };
+      cleanup = { ...cleanup, dryRun: true };
     } else if (arg === "--help" || arg === "-h") {
       process.stdout.write(
         [
           "otto — GitHub-triggered local agent runner",
           "",
           "Usage: otto [options]",
-          "       otto cleanup worktrees [options] [--force]",
-          "       otto cleanup branches [options] [--force]",
+          "       otto cleanup worktrees [options] [--dry-run]",
+          "       otto cleanup branches [options] [--dry-run]",
           "",
           "Options:",
           "  --config <path>     Path to config file (default: ./otto.yaml or ~/.otto/config.yaml)",
           "  --state-dir <path>  Path to state directory (default: ~/.otto)",
-          "  --force             Delete cleanup targets instead of printing a dry run",
+          "  --dry-run           Print cleanup targets without deleting them",
           "  --version           Print version and exit",
           "  --help              Show this message",
           "",
@@ -102,21 +102,21 @@ function parseArgs(argv: string[]): ParsedArgs | null {
 function printCleanupSummary(
   title: string,
   items: { repo: string; branch: string; deleted: boolean; detail?: string }[],
-  force: boolean,
+  dryRun: boolean,
 ): void {
   if (items.length === 0) {
     process.stdout.write(`No ${title} found.\n`);
     return;
   }
 
-  process.stdout.write(`${force ? "Deleted" : "Dry run"} ${title}:\n`);
+  process.stdout.write(`${dryRun ? "Dry run" : "Deleted"} ${title}:\n`);
   for (const item of items) {
     const detail = item.detail !== undefined ? ` ${item.detail}` : "";
     process.stdout.write(`- ${item.repo} ${item.branch}${detail}\n`);
   }
 
-  if (!force) {
-    process.stdout.write("Run again with --force to delete these items.\n");
+  if (dryRun) {
+    process.stdout.write("Run again without --dry-run to delete these items.\n");
   }
 }
 
@@ -138,7 +138,7 @@ async function main(): Promise<void> {
 
   if (args.cleanup !== undefined) {
     if (args.cleanup.target === "worktrees") {
-      const result = await repoManager.cleanupWorktrees({ force: args.cleanup.force });
+      const result = await repoManager.cleanupWorktrees({ dryRun: args.cleanup.dryRun });
       printCleanupSummary(
         "stale worktrees",
         result.stale.map((item) => ({
@@ -147,14 +147,14 @@ async function main(): Promise<void> {
           deleted: item.deleted,
           detail: `${item.path} (${item.reason})`,
         })),
-        args.cleanup.force,
+        args.cleanup.dryRun,
       );
     } else {
       const result = await repoManager.cleanupBranches({
         repos: config.github.repos,
-        force: args.cleanup.force,
+        dryRun: args.cleanup.dryRun,
       });
-      printCleanupSummary("merged remote branches", result.branches, args.cleanup.force);
+      printCleanupSummary("merged remote branches", result.branches, args.cleanup.dryRun);
     }
     return;
   }

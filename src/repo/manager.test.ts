@@ -599,7 +599,7 @@ describe("RepoManager.cleanupWorktrees()", () => {
       ]),
     });
 
-    const result = await manager.cleanupWorktrees();
+    const result = await manager.cleanupWorktrees({ dryRun: true });
 
     expect(result.stale).toEqual([
       {
@@ -638,7 +638,7 @@ describe("RepoManager.cleanupWorktrees()", () => {
     ]);
   });
 
-  it("removes stale worktrees and state when forced", async () => {
+  it("removes stale worktrees and state by default", async () => {
     const checkoutPath = join(reposDir, "owner-repo");
     const worktreePath = join(worktreesDir, "deleted");
     await mkdir(checkoutPath, { recursive: true });
@@ -660,7 +660,7 @@ describe("RepoManager.cleanupWorktrees()", () => {
       ]),
     });
 
-    const result = await manager.cleanupWorktrees({ force: true });
+    const result = await manager.cleanupWorktrees();
 
     expect(result.stale).toEqual([
       {
@@ -699,7 +699,7 @@ describe("RepoManager.cleanupWorktrees()", () => {
       ]),
     });
 
-    const result = await manager.cleanupWorktrees({ force: true });
+    const result = await manager.cleanupWorktrees();
 
     expect(result.stale).toEqual([]);
     expect(store.getWorktree("owner/repo#1")).toBeDefined();
@@ -721,7 +721,10 @@ describe("RepoManager.cleanupBranches()", () => {
       ]),
     });
 
-    const result = await manager.cleanupBranches({ repos: ["owner/repo"] });
+    const result = await manager.cleanupBranches({
+      repos: ["owner/repo"],
+      dryRun: true,
+    });
 
     expect(result.branches).toEqual([
       { repo: "owner/repo", branch: "otto/done", deleted: false },
@@ -735,7 +738,7 @@ describe("RepoManager.cleanupBranches()", () => {
     ]);
   });
 
-  it("deletes merged Otto-owned remote branches when forced", async () => {
+  it("deletes merged Otto-owned remote branches by default", async () => {
     const checkoutPath = join(reposDir, "owner-repo");
     await mkdir(checkoutPath, { recursive: true });
     await store.setRepoDefaultBranch("owner/repo", "main");
@@ -752,7 +755,6 @@ describe("RepoManager.cleanupBranches()", () => {
 
     const result = await manager.cleanupBranches({
       repos: ["owner/repo"],
-      force: true,
     });
 
     expect(result.branches).toEqual([
