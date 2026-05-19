@@ -21,14 +21,21 @@ import { registerShutdown } from "./shutdown.js";
 const DEFAULT_STATE_DIR = join(homedir(), ".otto");
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 
+type CleanupCommand = {
+  target: "worktrees" | "branches";
+  force: boolean;
+};
+
 type ParsedArgs = {
   configPath: string | undefined;
   stateDir: string;
+  cleanup: CleanupCommand | undefined;
 };
 
 function parseArgs(argv: string[]): ParsedArgs | null {
   let configPath: string | undefined;
   let stateDir = DEFAULT_STATE_DIR;
+  let cleanup: CleanupCommand | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -48,16 +55,33 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       }
       stateDir = next;
       i++;
+    } else if (arg === "cleanup") {
+      const target = argv[i + 1];
+      if (target !== "worktrees" && target !== "branches") {
+        process.stderr.write("Error: cleanup requires 'worktrees' or 'branches'\n");
+        return null;
+      }
+      cleanup = { target, force: false };
+      i++;
+    } else if (arg === "--force") {
+      if (cleanup === undefined) {
+        process.stderr.write("Error: --force is only valid with cleanup commands\n");
+        return null;
+      }
+      cleanup = { ...cleanup, force: true };
     } else if (arg === "--help" || arg === "-h") {
       process.stdout.write(
         [
           "otto — GitHub-triggered local agent runner",
           "",
           "Usage: otto [options]",
+          "       otto cleanup worktrees [options] [--force]",
+          "       otto cleanup branches [options] [--force]",
           "",
           "Options:",
           "  --config <path>     Path to config file (default: ./otto.yaml or ~/.otto/config.yaml)",
           "  --state-dir <path>  Path to state directory (default: ~/.otto)",
+          "  --force             Delete cleanup targets instead of printing a dry run",
           "  --version           Print version and exit",
           "  --help              Show this message",
           "",
@@ -72,7 +96,28 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
   }
 
-  return { configPath, stateDir };
+  return { configPath, stateDir, cleanup };
+}
+
+function printCleanupSummary(
+  title: string,
+  items: { repo: string; branch: string; deleted: boolean; detail?: string }[],
+  force: boolean,
+): void {
+  if (items.length === 0) {
+    process.stdout.write(`No ${title} found.\n`);
+    return;
+  }
+
+  process.stdout.write(`${force ? "Deleted" : "Dry run"} ${title}:\n`);
+  for (const item of items) {
+    const detail = item.detail !== undefined ? ` ${item.detail}` : "";
+    process.stdout.write(`- ${item.repo} ${item.branch}${detail}\n`);
+  }
+
+  if (!force) {
+    process.stdout.write("Run again with --force to delete these items.\n");
+  }
 }
 
 async function main(): Promise<void> {
@@ -85,6 +130,35 @@ async function main(): Promise<void> {
   const config = await loadConfig(configPath);
   const state = await StateStore.load(stateDir);
   const daemonLogger = logger.child({ machineId: state.machineId });
+  const repoManager = new RepoManager({
+    reposDir: config.workspace.reposDir,
+    worktreesDir: config.workspace.worktreesDir,
+    stateStore: state,
+  });
+
+  if (args.cleanup !== undefined) {
+    if (args.cleanup.target === "worktrees") {
+      const result = await repoManager.cleanupWorktrees({ force: args.cleanup.force });
+      printCleanupSummary(
+        "stale worktrees",
+        result.stale.map((item) => ({
+          repo: item.repo,
+          branch: item.branch,
+          deleted: item.deleted,
+          detail: `${item.path} (${item.reason})`,
+        })),
+        args.cleanup.force,
+      );
+    } else {
+      const result = await repoManager.cleanupBranches({
+        repos: config.github.repos,
+        force: args.cleanup.force,
+      });
+      printCleanupSummary("merged remote branches", result.branches, args.cleanup.force);
+    }
+    return;
+  }
+
   const releaseLock = await acquireLock(stateDir);
 
   const token = process.env[config.github.tokenEnvVar];
@@ -117,12 +191,6 @@ async function main(): Promise<void> {
     },
     "otto starting",
   );
-
-  const repoManager = new RepoManager({
-    reposDir: config.workspace.reposDir,
-    worktreesDir: config.workspace.worktreesDir,
-    stateStore: state,
-  });
 
   const agentRunner = createAgentRunner(config.agent.default, defaultRunnerConfig);
 

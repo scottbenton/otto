@@ -60,6 +60,13 @@ export class StateStore {
     return this.#data.worktrees[targetKey];
   }
 
+  listWorktrees(): (StateFile["worktrees"][string] & { targetKey: string })[] {
+    return Object.entries(this.#data.worktrees).map(([targetKey, worktree]) => ({
+      targetKey,
+      ...worktree
+    }));
+  }
+
   async setLastPolled(repo: string, timestamp: string): Promise<void> {
     this.#data = {
       ...this.#data,

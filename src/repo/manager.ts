@@ -73,6 +73,39 @@ export type PushBranchResult = {
   commits: string[];
 };
 
+export type CleanupOptions = {
+  force?: boolean;
+};
+
+export type CleanupWorktreeReason = "remote-deleted" | "merged";
+
+export type CleanupWorktreeItem = {
+  targetKey: string;
+  repo: string;
+  path: string;
+  branch: string;
+  reason: CleanupWorktreeReason;
+  deleted: boolean;
+};
+
+export type CleanupBranchItem = {
+  repo: string;
+  branch: string;
+  deleted: boolean;
+};
+
+export type CleanupWorktreesResult = {
+  stale: CleanupWorktreeItem[];
+};
+
+export type CleanupBranchesInput = CleanupOptions & {
+  repos: string[];
+};
+
+export type CleanupBranchesResult = {
+  branches: CleanupBranchItem[];
+};
+
 type RepoManagerOptions = {
   reposDir: string;
   worktreesDir?: string;
@@ -187,6 +220,88 @@ export class RepoManager {
     return { branch: input.branch, commits };
   }
 
+  async cleanupWorktrees(options: CleanupOptions = {}): Promise<CleanupWorktreesResult> {
+    const stale: CleanupWorktreeItem[] = [];
+    const worktrees = this.#stateStore.listWorktrees();
+    const repos = new Map<string, typeof worktrees>();
+
+    for (const worktree of worktrees) {
+      const repoWorktrees = repos.get(worktree.repo) ?? [];
+      repoWorktrees.push(worktree);
+      repos.set(worktree.repo, repoWorktrees);
+    }
+
+    for (const [repo, repoWorktrees] of repos) {
+      const repoPath = this.#checkoutPath(repo);
+      if (!(await pathIsDirectory(repoPath, "Repository checkout"))) continue;
+
+      const defaultBranch = await this.#getOrResolveDefaultBranch(repo, repoPath);
+      await this.#gitRunner(["fetch", "--prune", "origin"], { cwd: repoPath });
+      const mergedRemoteBranches = await this.#listMergedRemoteBranches(
+        repoPath,
+        defaultBranch,
+      );
+
+      for (const worktree of repoWorktrees) {
+        const remoteBranch = `origin/${worktree.branch}`;
+        const remoteBranchExists = await this.#remoteBranchExists(repoPath, worktree.branch);
+        let reason: CleanupWorktreeReason | undefined;
+        if (!remoteBranchExists) {
+          reason = "remote-deleted";
+        } else if (mergedRemoteBranches.includes(remoteBranch)) {
+          reason = "merged";
+        }
+
+        if (reason === undefined) continue;
+
+        if (options.force === true) {
+          await this.#gitRunner(["worktree", "remove", "--force", worktree.path], {
+            cwd: repoPath,
+            allowNonZeroExit: true,
+          });
+          await this.#stateStore.removeWorktree(worktree.targetKey);
+        }
+
+        stale.push({
+          targetKey: worktree.targetKey,
+          repo,
+          path: worktree.path,
+          branch: worktree.branch,
+          reason,
+          deleted: options.force === true,
+        });
+      }
+    }
+
+    return { stale };
+  }
+
+  async cleanupBranches(input: CleanupBranchesInput): Promise<CleanupBranchesResult> {
+    const branches: CleanupBranchItem[] = [];
+
+    for (const repo of input.repos) {
+      const repoPath = this.#checkoutPath(repo);
+      if (!(await pathIsDirectory(repoPath, "Repository checkout"))) continue;
+
+      const defaultBranch = await this.#getOrResolveDefaultBranch(repo, repoPath);
+      await this.#gitRunner(["fetch", "--prune", "origin"], { cwd: repoPath });
+
+      const mergedBranches = (await this.#listMergedRemoteBranches(repoPath, defaultBranch))
+        .map((branch) => branch.trim())
+        .filter((branch) => branch.startsWith("origin/otto/"))
+        .map((branch) => branch.slice("origin/".length));
+
+      for (const branch of mergedBranches) {
+        if (input.force === true) {
+          await this.#gitRunner(["push", "origin", "--delete", branch], { cwd: repoPath });
+        }
+        branches.push({ repo, branch, deleted: input.force === true });
+      }
+    }
+
+    return { branches };
+  }
+
   async #getPushableCommits(worktreePath: string, branch: string): Promise<string[]> {
     // Use allowNonZeroExit so a missing remote-tracking branch (exit 128) is handled
     // without swallowing unrelated errors via a catch-all.
@@ -244,6 +359,25 @@ export class RepoManager {
       .split("\n")
       .map((line) => line.trim())
       .includes(branch);
+  }
+
+  async #remoteBranchExists(repoPath: string, branch: string): Promise<boolean> {
+    const result = await this.#gitRunner(
+      ["show-ref", "--verify", "--quiet", `refs/remotes/origin/${branch}`],
+      { cwd: repoPath, allowNonZeroExit: true }
+    );
+    return (result.exitCode ?? 0) === 0;
+  }
+
+  async #listMergedRemoteBranches(repoPath: string, defaultBranch: string): Promise<string[]> {
+    const result = await this.#gitRunner(
+      ["branch", "-r", "--merged", `origin/${defaultBranch}`, "--format=%(refname:short)"],
+      { cwd: repoPath }
+    );
+    return result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
   }
 
   async #countUnmergedCommits(repoPath: string, baseRef: string, branch: string): Promise<number> {

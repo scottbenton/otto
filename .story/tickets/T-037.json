@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-025"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-19",
   "createdDate": "2026-05-16",
   "description": "Add operator subcommands to the CLI: otto cleanup worktrees (list and optionally delete stale worktree directories where the associated branch has been merged or deleted on remote), otto cleanup branches (list Otto-owned branches on remote that have been merged). Both commands are dry-run by default with a --force flag to actually delete. Never delete automatically during normal daemon operation.",
   "id": "T-037",
   "order": 50,
   "phase": "p4",
-  "status": "open",
+  "status": "complete",
   "title": "Operator cleanup commands (worktrees, stale branches)",
   "type": "task"
 }

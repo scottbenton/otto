@@ -569,3 +569,198 @@ describe("RepoManager.pushBranch()", () => {
     expect(pushCall?.options.cwd).toBe(repoPath);
   });
 });
+
+describe("RepoManager.cleanupWorktrees()", () => {
+  it("lists stale worktrees in dry-run mode without deleting state", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    const deletedPath = join(worktreesDir, "deleted");
+    const mergedPath = join(worktreesDir, "merged");
+    await mkdir(checkoutPath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    await store.setWorktree("owner/repo#1", {
+      repo: "owner/repo",
+      path: deletedPath,
+      branch: "otto/deleted"
+    });
+    await store.setWorktree("owner/repo#2", {
+      repo: "owner/repo",
+      path: mergedPath,
+      branch: "otto/merged"
+    });
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        "",
+        "origin/otto/merged\norigin/main\n",
+        { stdout: "", stderr: "", exitCode: 1 },
+        { stdout: "", stderr: "", exitCode: 0 },
+      ]),
+    });
+
+    const result = await manager.cleanupWorktrees();
+
+    expect(result.stale).toEqual([
+      {
+        targetKey: "owner/repo#1",
+        repo: "owner/repo",
+        path: deletedPath,
+        branch: "otto/deleted",
+        reason: "remote-deleted",
+        deleted: false,
+      },
+      {
+        targetKey: "owner/repo#2",
+        repo: "owner/repo",
+        path: mergedPath,
+        branch: "otto/merged",
+        reason: "merged",
+        deleted: false,
+      },
+    ]);
+    expect(store.getWorktree("owner/repo#1")).toBeDefined();
+    expect(store.getWorktree("owner/repo#2")).toBeDefined();
+    expect(calls).toEqual([
+      { args: ["fetch", "--prune", "origin"], options: { cwd: checkoutPath } },
+      {
+        args: ["branch", "-r", "--merged", "origin/main", "--format=%(refname:short)"],
+        options: { cwd: checkoutPath },
+      },
+      {
+        args: ["show-ref", "--verify", "--quiet", "refs/remotes/origin/otto/deleted"],
+        options: { cwd: checkoutPath, allowNonZeroExit: true },
+      },
+      {
+        args: ["show-ref", "--verify", "--quiet", "refs/remotes/origin/otto/merged"],
+        options: { cwd: checkoutPath, allowNonZeroExit: true },
+      },
+    ]);
+  });
+
+  it("removes stale worktrees and state when forced", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    const worktreePath = join(worktreesDir, "deleted");
+    await mkdir(checkoutPath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    await store.setWorktree("owner/repo#1", {
+      repo: "owner/repo",
+      path: worktreePath,
+      branch: "otto/deleted"
+    });
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        "",
+        "",
+        { stdout: "", stderr: "", exitCode: 1 },
+        "",
+      ]),
+    });
+
+    const result = await manager.cleanupWorktrees({ force: true });
+
+    expect(result.stale).toEqual([
+      {
+        targetKey: "owner/repo#1",
+        repo: "owner/repo",
+        path: worktreePath,
+        branch: "otto/deleted",
+        reason: "remote-deleted",
+        deleted: true,
+      },
+    ]);
+    expect(store.getWorktree("owner/repo#1")).toBeUndefined();
+    expect(calls).toContainEqual({
+      args: ["worktree", "remove", "--force", worktreePath],
+      options: { cwd: checkoutPath, allowNonZeroExit: true },
+    });
+  });
+
+  it("keeps active worktrees whose remote branch is unmerged", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    await mkdir(checkoutPath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    await store.setWorktree("owner/repo#1", {
+      repo: "owner/repo",
+      path: join(worktreesDir, "active"),
+      branch: "otto/active"
+    });
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        "",
+        "origin/main\n",
+        { stdout: "", stderr: "", exitCode: 0 },
+      ]),
+    });
+
+    const result = await manager.cleanupWorktrees({ force: true });
+
+    expect(result.stale).toEqual([]);
+    expect(store.getWorktree("owner/repo#1")).toBeDefined();
+  });
+});
+
+describe("RepoManager.cleanupBranches()", () => {
+  it("lists merged Otto-owned remote branches in dry-run mode", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    await mkdir(checkoutPath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        "",
+        "origin/otto/done\norigin/feature/not-otto\norigin/main\n",
+      ]),
+    });
+
+    const result = await manager.cleanupBranches({ repos: ["owner/repo"] });
+
+    expect(result.branches).toEqual([
+      { repo: "owner/repo", branch: "otto/done", deleted: false },
+    ]);
+    expect(calls).toEqual([
+      { args: ["fetch", "--prune", "origin"], options: { cwd: checkoutPath } },
+      {
+        args: ["branch", "-r", "--merged", "origin/main", "--format=%(refname:short)"],
+        options: { cwd: checkoutPath },
+      },
+    ]);
+  });
+
+  it("deletes merged Otto-owned remote branches when forced", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    await mkdir(checkoutPath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        "",
+        "origin/otto/done\n",
+        "",
+      ]),
+    });
+
+    const result = await manager.cleanupBranches({
+      repos: ["owner/repo"],
+      force: true,
+    });
+
+    expect(result.branches).toEqual([
+      { repo: "owner/repo", branch: "otto/done", deleted: true },
+    ]);
+    expect(calls).toContainEqual({
+      args: ["push", "origin", "--delete", "otto/done"],
+      options: { cwd: checkoutPath },
+    });
+  });
+});
