@@ -1,14 +1,12 @@
 {
-  "blockedBy": [
-    "T-032"
-  ],
-  "completedDate": null,
+  "blockedBy": [],
+  "completedDate": "2026-05-19",
   "createdDate": "2026-05-16",
   "description": "Full lifecycle integration test using the fake GitHub server and MockRunner. Scenario: seed a trigger comment, start the daemon, verify it detects the comment, posts a status comment, runs the mock agent, and updates the status comment to completed. Flow under test: poll → claim → hydrate → run → report. Additional scenarios: duplicate webhook (same comment seen twice), duplicate claim race, restart recovery (seed a stale running comment with the machine UUID, verify it gets marked interrupted on startup), non-fast-forward push failure.",
   "id": "T-034",
   "order": 20,
   "phase": "p4",
-  "status": "open",
+  "status": "complete",
   "title": "End-to-end task flow test (poll → claim → hydrate → classify → run → report)",
   "type": "task"
 }
