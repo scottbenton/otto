@@ -112,6 +112,40 @@ describe("RepoManager.prepareWorktree()", () => {
     });
   });
 
+  it("uses a custom baseBranch as the worktree starting point when provided", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    await mkdir(checkoutPath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createRunner()
+    });
+
+    const worktreePath = join(worktreesDir, "owner-repo-5");
+    await manager.prepareWorktree({
+      slug: "owner/repo",
+      targetKey: "owner/repo#5",
+      branch: "otto/owner-repo-5-abc12345",
+      baseBranch: "feature-branch",
+    });
+
+    expect(calls).toEqual([
+      { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["merge", "--ff-only", "origin/main"], options: { cwd: checkoutPath } },
+      {
+        args: ["branch", "--list", "--format=%(refname:short)", "otto/owner-repo-5-abc12345"],
+        options: { cwd: checkoutPath }
+      },
+      {
+        args: ["worktree", "add", "-b", "otto/owner-repo-5-abc12345", worktreePath, "origin/feature-branch"],
+        options: { cwd: checkoutPath }
+      },
+      { args: ["status", "--porcelain"], options: { cwd: worktreePath } }
+    ]);
+  });
+
   it("reuses an existing worktree directory without running git worktree add", async () => {
     const checkoutPath = join(reposDir, "owner-repo");
     const worktreePath = join(worktreesDir, "owner-repo-123");

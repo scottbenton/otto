@@ -188,9 +188,10 @@ async function hydrateFromIssueUrl(
 
   if (issueRaw.pull_request !== undefined) {
     const pullsUrl = issueUrl.replace(/\/issues\/(\d+)$/, "/pulls/$1");
-    const [pullRaw, reviewsRaw] = await Promise.all([
+    const [pullRaw, reviewsRaw, { comments: conversationComments }] = await Promise.all([
       client.request<GitHubPullResponse>(pullsUrl),
       client.paginateAll<GitHubReviewResponse>(`${pullsUrl}/reviews`),
+      fetchComments(client, `${issueUrl}/comments`),
     ]);
     return {
       kind: "pull_request",
@@ -200,7 +201,7 @@ async function hydrateFromIssueUrl(
       issue,
       pullRequest: toPullRequestDetails(pullRaw),
       reviews: reviewsRaw.map(toReview),
-      inlineThread: [],
+      inlineThread: conversationComments,
       lineComments: [],
     };
   }

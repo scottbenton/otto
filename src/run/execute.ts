@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { hydrateContext } from "../context/hydrate.js";
 import { normalizeContext } from "../context/normalize.js";
 import type { GitHubClient } from "../github/client.js";
-import { createPrForIssueTask } from "../github/pulls.js";
+import { createPrForIssueTask, createPrForPrTask } from "../github/pulls.js";
 import type { OttoLogger } from "../logger.js";
 import { claimOrAbort, commentSourceKey } from "../polling/claim.js";
 import type { DispatchBatch } from "../polling/dispatch.js";
@@ -126,6 +126,7 @@ export async function executeRun(
       slug: repo,
       targetKey: batch.targetKey,
       branch,
+      ...(ctx.pullRequest !== null ? { baseBranch: ctx.pullRequest.headBranch } : {}),
     });
     worktreeAcquired = true;
 
@@ -165,6 +166,20 @@ export async function executeRun(
         prInput.agentPrBody = result.prBody;
       }
       const pr = await createPrForIssueTask(github, prInput);
+      pullRequestUrl = pr.htmlUrl;
+    } else if (ctx.pullRequest !== null) {
+      const prInput: Parameters<typeof createPrForPrTask>[1] = {
+        owner: ctx.owner,
+        repo: ctx.repo,
+        prNumber: ctx.number,
+        prTitle: ctx.issue.title,
+        branch: pushed.branch,
+        baseBranch: ctx.pullRequest.headBranch,
+      };
+      if (result.prBody !== undefined) {
+        prInput.agentPrBody = result.prBody;
+      }
+      const pr = await createPrForPrTask(github, prInput);
       pullRequestUrl = pr.htmlUrl;
     }
 
