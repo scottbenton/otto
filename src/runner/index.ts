@@ -3,6 +3,8 @@ export { MockRunner } from "./mock.js";
 export type { MockRunnerOptions } from "./mock.js";
 export { CommandRunner } from "./command.js";
 export type { CommandRunnerOptions } from "./command.js";
+export { ExternalRunner } from "./external.js";
+export type { ExternalRunnerOptions } from "./external.js";
 export { ClaudeRunner } from "./claude.js";
 export type { ClaudeRunnerOptions } from "./claude.js";
 export { CodexRunner } from "./codex.js";
