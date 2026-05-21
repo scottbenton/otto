@@ -80,17 +80,22 @@ async function writeFakeCommand(name: string, source: string): Promise<string> {
 }
 
 describe("renderAgentPrompt() for external runners", () => {
-  it("shares context rendering and asks for Otto JSON", () => {
+  it("can render external edit guidance before Otto JSON output instructions", () => {
     const prompt = renderAgentPrompt(makeInput(), {
-      systemPrompt: "shared system"
+      systemPrompt: "shared system",
+      additionalSections: [["External runner instructions", "Use your native code-editing workflow."]]
     });
 
     expect(prompt).toContain("shared system");
     expect(prompt).toContain("Address a review or discussion comment");
     expect(prompt).toContain("owner/repo");
     expect(prompt).toContain("otto fix this");
+    expect(prompt).toContain("Use your native code-editing workflow");
     expect(prompt).toContain("Output only a JSON object");
     expect(prompt).toContain('"commentSummaries"');
+    expect(prompt.indexOf("Use your native code-editing workflow")).toBeLessThan(
+      prompt.indexOf("Output only a JSON object")
+    );
   });
 });
 
@@ -120,7 +125,9 @@ const context = JSON.parse(require("node:fs").readFileSync(contextPath, "utf8"))
 const payload = {
   args: args.map((arg) => arg === promptPath ? "<promptFile>" : arg === contextPath ? "<contextFile>" : arg),
   promptIncludesTask: prompt.includes("fix the bug"),
+  promptRequiresEdits: prompt.includes("Use your native code-editing workflow"),
   promptRequiresJson: prompt.includes("Output only a JSON object"),
+  editBeforeJson: prompt.indexOf("Use your native code-editing workflow") < prompt.indexOf("Output only a JSON object"),
   contextOwner: context.owner,
   cwd: process.cwd(),
   promptFileEnv: process.env.OTTO_PROMPT_FILE,
@@ -142,7 +149,9 @@ process.stdout.write(JSON.stringify({ summary: JSON.stringify(payload) }));
     const payload = JSON.parse(result.summary) as {
       args: string[];
       promptIncludesTask: boolean;
+      promptRequiresEdits: boolean;
       promptRequiresJson: boolean;
+      editBeforeJson: boolean;
       contextOwner: string;
       cwd: string;
       promptFileEnv: string;
@@ -160,7 +169,9 @@ process.stdout.write(JSON.stringify({ summary: JSON.stringify(payload) }));
     expect(payload.contextFileEnv).toMatch(/otto-context-[0-9a-f-]+\.json$/);
     expect(payload.args).toEqual(["--message-file", "<promptFile>", "--context", "<contextFile>"]);
     expect(payload.promptIncludesTask).toBe(true);
+    expect(payload.promptRequiresEdits).toBe(true);
     expect(payload.promptRequiresJson).toBe(true);
+    expect(payload.editBeforeJson).toBe(true);
     expect(payload.contextOwner).toBe("owner");
     expect(payload.inheritedEnv).toBe("yes");
     delete process.env.OTTO_TEST_INHERITED_ENV;

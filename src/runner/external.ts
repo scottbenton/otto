@@ -38,7 +38,19 @@ export class ExternalRunner implements AgentRunner {
 
   async run(input: AgentRunInput): Promise<AgentRunResult> {
     const prompt = renderAgentPrompt(input, {
-      systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT
+      systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT,
+      additionalSections: [
+        [
+          "External runner instructions",
+          [
+            "Use your native code-editing workflow to inspect the repository, edit files, and commit the changes.",
+            "Do not answer only with a summary; perform the requested implementation before producing final output.",
+            "If the request requires code changes, leave at least one git commit on the current branch.",
+            "After committing, end with Otto's required JSON object so Otto can parse comment summaries.",
+            "If no code change is appropriate, explain why in the required JSON and exit without committing."
+          ].join("\n")
+        ]
+      ]
     });
     const runId = randomUUID();
     const contextFile = join(tmpdir(), `otto-context-${runId}.json`);

@@ -3,6 +3,8 @@ import type { AgentRunInput } from "./types.js";
 
 export type RenderAgentPromptOptions = {
   systemPrompt?: string;
+  includeOutputInstructions?: boolean;
+  additionalSections?: [string, string][];
 };
 
 export function renderAgentPrompt(input: AgentRunInput, options: RenderAgentPromptOptions): string {
@@ -18,7 +20,10 @@ export function renderAgentPrompt(input: AgentRunInput, options: RenderAgentProm
     ["Comment thread", renderComments(input)],
     ["Line contexts", renderLineContexts(context.lineContexts)],
     ["Git instructions", renderGitInstructions()],
-    ["Output instructions", renderOutputInstructions(input)]
+    ...(options.additionalSections ?? []),
+    ...(options.includeOutputInstructions === false
+      ? []
+      : ([["Output instructions", renderOutputInstructions(input)]] as [string, string][]))
   ];
 
   return sections

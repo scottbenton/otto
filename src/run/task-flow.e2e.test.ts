@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GitHubClient } from "../github/client.js";
-import { NonFastForwardError, type RepoManager } from "../repo/manager.js";
+import { NoChangesError, NonFastForwardError, type RepoManager } from "../repo/manager.js";
 import { MockRunner } from "../runner/mock.js";
 import { StateStore } from "../state/store.js";
 import {
@@ -277,6 +277,31 @@ describe("task flow e2e", () => {
     expect(bodies[0]).toContain("Status: failed");
     expect(bodies[0]).toContain("Otto never force-pushes");
     expect(bodies[0]).toContain("To retry, post a new comment: otto retry");
+  });
+
+  it("reports failure without creating a PR when the runner produces no commits", async () => {
+    server.addIssueComment(OWNER, REPO, makeIssueComment(101));
+    const batch = await pollAndDetect();
+    const runner = new MockRunner({ result: { success: true, summary: "otto fix this" } });
+    const { manager, calls } = makeRepoManager({
+      pushError: new NoChangesError("No commits to push for branch otto/owner-repo-1")
+    });
+
+    await executeBatch(batch, runner, manager);
+
+    expect(runner.calls).toHaveLength(1);
+    expect(calls).toEqual(["prepareWorktree", "pushBranch", "releaseWorktree"]);
+
+    const bodies = statusBodies(await issueComments());
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toContain("Status: failed");
+    expect(bodies[0]).toContain("without producing any commits");
+    expect(bodies[0]).not.toContain("Status: completed");
+
+    const prCreate = server.requests.find(
+      (request) => request.method === "POST" && request.path === `/repos/${OWNER}/${REPO}/pulls`
+    );
+    expect(prCreate).toBeUndefined();
   });
 });
 
