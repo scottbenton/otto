@@ -9,6 +9,14 @@ const CommandRunnerConfigSchema = z
   })
   .strict();
 
+const ExternalRunnerConfigSchema = z
+  .object({
+    type: z.literal("external"),
+    command: z.string().min(1),
+    args: z.array(z.string()).default([]),
+  })
+  .strict();
+
 const ClaudeRunnerConfigSchema = z
   .object({
     type: z.literal("claude"),
@@ -23,19 +31,11 @@ const CodexRunnerConfigSchema = z
   })
   .strict();
 
-const LmStudioRunnerConfigSchema = z
-  .object({
-    type: z.literal("lmstudio"),
-    model: z.string().min(1),
-    modelTtlSeconds: z.number().int().min(0).default(3600),
-  })
-  .strict();
-
 const RunnerConfigSchema = z.discriminatedUnion("type", [
   CommandRunnerConfigSchema,
+  ExternalRunnerConfigSchema,
   ClaudeRunnerConfigSchema,
   CodexRunnerConfigSchema,
-  LmStudioRunnerConfigSchema,
 ]);
 
 export const OttoConfigSchema = z.object({

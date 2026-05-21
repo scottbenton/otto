@@ -226,43 +226,43 @@ describe("OttoConfigSchema", () => {
     expect(result.agent.runners.codex).toEqual(config.agent.runners.codex);
   });
 
-  it("accepts an lmstudio runner with defaults", () => {
+  it("accepts an external runner with default args", () => {
     const config = {
       ...validConfig,
       agent: {
-        default: "local",
+        default: "aider",
         runners: {
-          local: { type: "lmstudio", model: "qwen3-coder-30b" },
+          aider: { type: "external", command: "uvx" },
         },
       },
     };
     const result = OttoConfigSchema.parse(config);
-    expect(result.agent.runners.local).toEqual({
-      type: "lmstudio",
-      model: "qwen3-coder-30b",
-      modelTtlSeconds: 3600,
+    expect(result.agent.runners.aider).toEqual({
+      type: "external",
+      command: "uvx",
+      args: [],
     });
   });
 
-  it("accepts an lmstudio runner with a custom model ttl", () => {
+  it("accepts an external runner with custom args", () => {
     const config = {
       ...validConfig,
       agent: {
-        default: "local",
+        default: "aider",
         runners: {
-          local: {
-            type: "lmstudio",
-            model: "qwen3-coder-30b",
-            modelTtlSeconds: 120,
+          aider: {
+            type: "external",
+            command: "uvx",
+            args: ["--from", "aider-chat", "aider", "--message-file", "{{promptFile}}"],
           },
         },
       },
     };
     const result = OttoConfigSchema.parse(config);
-    expect(result.agent.runners.local).toEqual(config.agent.runners.local);
+    expect(result.agent.runners.aider).toEqual(config.agent.runners.aider);
   });
 
-  it("rejects lmstudio runner internals in config", () => {
+  it("rejects old lmstudio runner configs", () => {
     const config = {
       ...validConfig,
       agent: {
@@ -271,7 +271,6 @@ describe("OttoConfigSchema", () => {
           local: {
             type: "lmstudio",
             model: "qwen3-coder-30b",
-            command: "lms-wrapper",
           },
         },
       },

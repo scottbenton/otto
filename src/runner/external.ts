@@ -1,51 +1,82 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { parseOttoJsonOutput, toAgentRunResult, truncateRunnerOutput } from "./output.js";
 import { renderAgentPrompt } from "./prompt.js";
 import { DEFAULT_AGENT_SYSTEM_PROMPT } from "./system-prompt.js";
 import type { AgentRunInput, AgentRunResult, AgentRunner, RunnerCapabilities } from "./types.js";
 
-const LMSTUDIO_COMMAND = "lms";
+const CAPABILITIES: RunnerCapabilities = {
+  canEdit: true,
+  canRunShell: true,
+  supportsStructuredOutput: false
+};
 
-export type LmStudioRunnerOptions = {
+export type ExternalRunnerOptions = {
   id: string;
-  model: string;
-  modelTtlSeconds: number;
+  command: string;
+  args?: string[];
   spawnImpl?: typeof spawn;
 };
 
-const CAPABILITIES: RunnerCapabilities = {
-  canEdit: false,
-  canRunShell: false,
-  supportsStructuredOutput: true
-};
-
-export class LmStudioRunner implements AgentRunner {
+export class ExternalRunner implements AgentRunner {
   readonly id: string;
   readonly capabilities = CAPABILITIES;
-  readonly #model: string;
-  readonly #modelTtlSeconds: number;
+  readonly #command: string;
+  readonly #args: string[];
   readonly #spawnImpl: typeof spawn;
 
-  constructor(options: LmStudioRunnerOptions) {
+  constructor(options: ExternalRunnerOptions) {
     this.id = options.id;
-    this.#model = options.model;
-    this.#modelTtlSeconds = options.modelTtlSeconds;
+    this.#command = options.command;
+    this.#args = options.args ?? [];
     this.#spawnImpl = options.spawnImpl ?? spawn;
   }
 
-  run(input: AgentRunInput): Promise<AgentRunResult> {
-    const cwd = input.repoPaths[0] ?? process.cwd();
+  async run(input: AgentRunInput): Promise<AgentRunResult> {
     const prompt = renderAgentPrompt(input, {
       systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT
     });
-    return this.#spawnWithTimeout(input, cwd, prompt);
+    const runId = randomUUID();
+    const contextFile = join(tmpdir(), `otto-context-${runId}.json`);
+    const promptFile = join(tmpdir(), `otto-prompt-${runId}.md`);
+
+    try {
+      await Promise.all([
+        writeFile(contextFile, JSON.stringify(input.context), "utf-8"),
+        writeFile(promptFile, prompt, "utf-8")
+      ]);
+      return await this.#spawnWithTimeout(input, prompt, promptFile, contextFile);
+    } finally {
+      await Promise.all([
+        rm(contextFile, { force: true }),
+        rm(promptFile, { force: true })
+      ]);
+    }
   }
 
-  #spawnWithTimeout(input: AgentRunInput, cwd: string, prompt: string): Promise<AgentRunResult> {
+  #spawnWithTimeout(
+    input: AgentRunInput,
+    prompt: string,
+    promptFile: string,
+    contextFile: string
+  ): Promise<AgentRunResult> {
     return new Promise<AgentRunResult>((resolve) => {
       let settled = false;
       let timedOut = false;
+      const cwd = input.repoPaths[0] ?? process.cwd();
+      const templateValues = {
+        prompt,
+        promptFile,
+        contextFile,
+        task: input.task,
+        repoPath: cwd,
+        repoPaths: input.repoPaths.join(":")
+      };
+      const args = this.#args.map((arg) => replaceTemplates(arg, templateValues));
 
       const settle = (result: AgentRunResult): void => {
         if (settled) return;
@@ -54,19 +85,14 @@ export class LmStudioRunner implements AgentRunner {
         resolve(result);
       };
 
-      const args = [
-        "chat",
-        this.#model,
-        "--prompt",
-        prompt,
-        "--ttl",
-        this.#modelTtlSeconds.toString()
-      ];
-      const child = this.#spawnImpl(LMSTUDIO_COMMAND, args, {
+      const child = this.#spawnImpl(this.#command, args, {
         cwd,
         detached: true,
         env: {
           ...process.env,
+          OTTO_TASK: input.task,
+          OTTO_CONTEXT_FILE: contextFile,
+          OTTO_PROMPT_FILE: promptFile,
           OTTO_REPO_PATH: cwd,
           OTTO_REPO_PATHS: input.repoPaths.join(":"),
           OTTO_TIMEOUT_MS: String(input.timeoutMs)
@@ -104,13 +130,12 @@ export class LmStudioRunner implements AgentRunner {
         const rawStdout = Buffer.concat(stdout).toString("utf-8");
         const rawStderr = Buffer.concat(stderr).toString("utf-8").trim();
         const summary = truncateRunnerOutput(rawStdout);
-        const parsed = parseOttoJsonOutput(rawStdout, "lmstudio");
 
         if (timedOut) {
           settle({
             success: false,
             summary,
-            error: `lmstudio timed out after ${input.timeoutMs.toString()}ms`
+            error: `external runner timed out after ${input.timeoutMs.toString()}ms`
           });
           return;
         }
@@ -119,18 +144,25 @@ export class LmStudioRunner implements AgentRunner {
           settle({
             success: false,
             summary,
-            error: rawStderr.length > 0 ? rawStderr : `lmstudio exited with code ${String(code)}`
+            error: rawStderr.length > 0 ? rawStderr : `external runner exited with code ${String(code)}`
           });
           return;
         }
 
-        if (!parsed.ok) {
-          settle({ success: true, summary: parsed.summary });
+        const parsed = parseOttoJsonOutput(rawStdout, "external runner");
+        if (parsed.ok) {
+          settle(toAgentRunResult(parsed));
           return;
         }
 
-        settle(toAgentRunResult(parsed));
+        settle({ success: true, summary: "" });
       });
     });
   }
+}
+
+function replaceTemplates(value: string, replacements: Record<string, string>): string {
+  return value.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (match, key: string) => {
+    return replacements[key] ?? match;
+  });
 }
