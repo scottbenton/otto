@@ -127,7 +127,7 @@ export async function executeRun(
       slug: repo,
       targetKey: batch.targetKey,
       branch,
-      ...(ctx.pullRequest !== null ? { baseBranch: ctx.pullRequest.headBranch } : {})
+      mode: ctx.pullRequest !== null ? "existing" : "new"
     });
     worktreeAcquired = true;
 

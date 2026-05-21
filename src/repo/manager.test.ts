@@ -76,7 +76,8 @@ describe("RepoManager.prepareWorktree()", () => {
     const worktree = await manager.prepareWorktree({
       slug: "owner/repo",
       targetKey: "owner/repo#123",
-      branch: "otto/owner-repo-123"
+      branch: "otto/owner-repo-123",
+      mode: "new"
     });
 
     const worktreePath = join(worktreesDir, "owner-repo-123");
@@ -133,6 +134,7 @@ describe("RepoManager.prepareWorktree()", () => {
       slug: "owner/repo",
       targetKey: "owner/repo#5",
       branch: "otto/owner-repo-5-abc12345",
+      mode: "new",
       baseBranch: "feature-branch",
     });
 
@@ -161,7 +163,7 @@ describe("RepoManager.prepareWorktree()", () => {
     ]);
   });
 
-  it("creates a worktree from the remote branch when the local branch is missing", async () => {
+  it("creates an existing-branch worktree from the remote branch when the local branch is missing", async () => {
     const checkoutPath = join(reposDir, "owner-repo");
     await mkdir(checkoutPath, { recursive: true });
     await store.setRepoDefaultBranch("owner/repo", "main");
@@ -169,14 +171,14 @@ describe("RepoManager.prepareWorktree()", () => {
       reposDir,
       worktreesDir,
       stateStore: store,
-      gitRunner: createAdvancedRunner(["", "", "", "", { stdout: "", stderr: "", exitCode: 0 }, "", ""])
+      gitRunner: createAdvancedRunner(["", "", "", "", "otto/owner-repo-123\n", "", ""])
     });
 
     await manager.prepareWorktree({
       slug: "owner/repo",
       targetKey: "owner/repo#123",
       branch: "otto/owner-repo-123",
-      baseBranch: "otto/owner-repo-123",
+      mode: "existing"
     });
 
     const worktreePath = join(worktreesDir, "owner-repo-123");
@@ -185,18 +187,54 @@ describe("RepoManager.prepareWorktree()", () => {
       { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       { args: ["merge", "--ff-only", "origin/main"], options: { cwd: checkoutPath } },
       {
-        args: ["branch", "--list", "--format=%(refname:short)", "otto/owner-repo-123"],
+        args: ["worktree", "add", worktreePath, "otto/owner-repo-123"],
         options: { cwd: checkoutPath }
       },
       {
-        args: ["show-ref", "--verify", "--quiet", "refs/remotes/origin/otto/owner-repo-123"],
-        options: { cwd: checkoutPath, allowNonZeroExit: true }
+        args: ["rev-parse", "--abbrev-ref", "HEAD"],
+        options: { cwd: worktreePath }
       },
+      { args: ["status", "--porcelain"], options: { cwd: worktreePath } },
       {
-        args: ["worktree", "add", "-B", "otto/owner-repo-123", worktreePath, "origin/otto/owner-repo-123"],
-        options: { cwd: checkoutPath }
+        args: ["merge", "--ff-only", "origin/otto/owner-repo-123"],
+        options: { cwd: worktreePath }
+      }
+    ]);
+  });
+
+  it("reuses and fast-forwards an existing worktree for an existing branch", async () => {
+    const checkoutPath = join(reposDir, "owner-repo");
+    const worktreePath = join(worktreesDir, "owner-repo-123");
+    await mkdir(checkoutPath, { recursive: true });
+    await mkdir(worktreePath, { recursive: true });
+    await store.setRepoDefaultBranch("owner/repo", "main");
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createRunner(["", "", "", "otto/owner-repo-123\n", "", ""])
+    });
+
+    await manager.prepareWorktree({
+      slug: "owner/repo",
+      targetKey: "owner/repo#123",
+      branch: "otto/owner-repo-123",
+      mode: "existing"
+    });
+
+    expect(calls).toEqual([
+      { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
+      { args: ["merge", "--ff-only", "origin/main"], options: { cwd: checkoutPath } },
+      {
+        args: ["rev-parse", "--abbrev-ref", "HEAD"],
+        options: { cwd: worktreePath }
       },
-      { args: ["status", "--porcelain"], options: { cwd: worktreePath } }
+      { args: ["status", "--porcelain"], options: { cwd: worktreePath } },
+      {
+        args: ["merge", "--ff-only", "origin/otto/owner-repo-123"],
+        options: { cwd: worktreePath }
+      }
     ]);
   });
 
@@ -210,13 +248,14 @@ describe("RepoManager.prepareWorktree()", () => {
       reposDir,
       worktreesDir,
       stateStore: store,
-      gitRunner: createRunner()
+      gitRunner: createRunner(["", "", "", "otto/owner-repo-123\n", "", "0\n", ""])
     });
 
     await manager.prepareWorktree({
       slug: "owner/repo",
       targetKey: "owner/repo#123",
-      branch: "otto/owner-repo-123"
+      branch: "otto/owner-repo-123",
+      mode: "new"
     });
 
     expect(calls).toEqual([
@@ -227,7 +266,19 @@ describe("RepoManager.prepareWorktree()", () => {
         options: { cwd: checkoutPath }
       },
       {
+        args: ["rev-parse", "--abbrev-ref", "HEAD"],
+        options: { cwd: worktreePath }
+      },
+      {
         args: ["status", "--porcelain"],
+        options: { cwd: worktreePath }
+      },
+      {
+        args: ["rev-list", "--count", "origin/main..otto/owner-repo-123"],
+        options: { cwd: checkoutPath }
+      },
+      {
+        args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: worktreePath }
       }
     ]);
@@ -244,14 +295,15 @@ describe("RepoManager.prepareWorktree()", () => {
       reposDir,
       worktreesDir,
       stateStore: store,
-      gitRunner: createRunner(["", "", "", " M src/index.ts\n"])
+      gitRunner: createRunner(["", "", "", "otto/owner-repo-123\n", " M src/index.ts\n"])
     });
 
     await expect(
       manager.prepareWorktree({
         slug: "owner/repo",
         targetKey: "owner/repo#123",
-        branch: "otto/owner-repo-123"
+        branch: "otto/owner-repo-123",
+        mode: "new"
       })
     ).rejects.toThrow(/uncommitted changes/);
 
@@ -261,6 +313,10 @@ describe("RepoManager.prepareWorktree()", () => {
       {
         args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: checkoutPath }
+      },
+      {
+        args: ["rev-parse", "--abbrev-ref", "HEAD"],
+        options: { cwd: worktreePath }
       },
       {
         args: ["status", "--porcelain"],
@@ -284,7 +340,8 @@ describe("RepoManager.prepareWorktree()", () => {
     await manager.prepareWorktree({
       slug: "owner/repo",
       targetKey: "owner/repo#123",
-      branch: "otto/owner-repo-123"
+      branch: "otto/owner-repo-123",
+      mode: "new"
     });
 
     const worktreePath = join(worktreesDir, "owner-repo-123");
@@ -333,7 +390,8 @@ describe("RepoManager.prepareWorktree()", () => {
       manager.prepareWorktree({
         slug: "owner/repo",
         targetKey: "owner/repo#123",
-        branch: "otto/owner-repo-123"
+        branch: "otto/owner-repo-123",
+        mode: "new"
       })
     ).rejects.toThrow(/unmerged commits/);
 
@@ -412,7 +470,8 @@ describe("RepoManager.prepareWorktree()", () => {
       manager.prepareWorktree({
         slug: "owner/repo",
         targetKey: "owner/repo#123",
-        branch: "otto/owner-repo-123"
+        branch: "otto/owner-repo-123",
+        mode: "new"
       })
     ).rejects.toThrow(RepoManagerError);
   });

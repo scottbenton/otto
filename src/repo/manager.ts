@@ -37,6 +37,7 @@ export type PreparedRepository = {
 export type PrepareWorktreeInput = PrepareRepositoryInput & {
   targetKey: string;
   branch: string;
+  mode: "new" | "existing";
   /** Branch to base the new worktree on. Defaults to the repo's default branch. */
   baseBranch?: string;
 };
@@ -151,13 +152,23 @@ export class RepoManager {
   async prepareWorktree(input: PrepareWorktreeInput): Promise<PreparedWorktree> {
     const repo = await this.prepareRepository(input);
     const worktreePath = this.#worktreePath(input.targetKey);
+    const baseBranch = input.baseBranch ?? repo.defaultBranch;
+    const worktreeExists = await pathIsDirectory(worktreePath, "Worktree");
 
-    if (!(await pathIsDirectory(worktreePath, "Worktree"))) {
+    if (!worktreeExists) {
       await mkdir(this.#worktreesDir, { recursive: true });
-      await this.#addWorktree(repo.path, worktreePath, input.branch, input.baseBranch ?? repo.defaultBranch);
+      if (input.mode === "existing") {
+        await this.#addExistingBranchWorktree(repo.path, worktreePath, input.branch);
+      } else {
+        await this.#addNewBranchWorktree(repo.path, worktreePath, input.branch, baseBranch);
+      }
     }
 
-    await this.#assertCleanWorktree(worktreePath);
+    if (worktreeExists || input.mode === "existing") {
+      await this.#prepareExistingWorktree(repo.path, worktreePath, input.branch, input.mode, baseBranch);
+    } else {
+      await this.#assertCleanWorktree(worktreePath);
+    }
 
     await this.#stateStore.setWorktree(input.targetKey, {
       repo: input.slug,
@@ -325,7 +336,15 @@ export class RepoManager {
     return [headResult.stdout.trim()].filter(Boolean);
   }
 
-  async #addWorktree(
+  async #addExistingBranchWorktree(
+    repoPath: string,
+    worktreePath: string,
+    branch: string
+  ): Promise<void> {
+    await this.#gitRunner(["worktree", "add", worktreePath, branch], { cwd: repoPath });
+  }
+
+  async #addNewBranchWorktree(
     repoPath: string,
     worktreePath: string,
     branch: string,
@@ -347,15 +366,49 @@ export class RepoManager {
     }
 
     if (await this.#remoteBranchExists(repoPath, branch)) {
-      await this.#gitRunner(["worktree", "add", "-B", branch, worktreePath, `origin/${branch}`], {
-        cwd: repoPath
-      });
-      return;
+      throw new RepoManagerError(`Remote branch ${branch} already exists; refusing to recreate it`);
     }
 
     await this.#gitRunner(["worktree", "add", "-b", branch, worktreePath, baseRef], {
       cwd: repoPath
     });
+  }
+
+  async #prepareExistingWorktree(
+    repoPath: string,
+    worktreePath: string,
+    branch: string,
+    mode: "new" | "existing",
+    baseBranch: string
+  ): Promise<void> {
+    const currentBranch = await this.#currentBranch(worktreePath);
+    if (currentBranch !== branch) {
+      throw new RepoManagerError(
+        `Worktree ${worktreePath} is on branch ${currentBranch}, expected ${branch}`
+      );
+    }
+
+    await this.#assertCleanWorktree(worktreePath);
+
+    const upstreamBranch = mode === "existing" ? branch : baseBranch;
+    if (mode === "new") {
+      const unmergedCommits = await this.#countUnmergedCommits(repoPath, `origin/${baseBranch}`, branch);
+      if (unmergedCommits > 0) {
+        throw new RepoManagerError(
+          `Branch ${branch} already has unmerged commits; refusing to reset it`
+        );
+      }
+    }
+    await this.#gitRunner(["merge", "--ff-only", `origin/${upstreamBranch}`], {
+      cwd: worktreePath
+    });
+  }
+
+  async #currentBranch(worktreePath: string): Promise<string> {
+    const result = await this.#gitRunner(["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd: worktreePath
+    });
+    return result.stdout.trim();
   }
 
   async #branchExists(repoPath: string, branch: string): Promise<boolean> {

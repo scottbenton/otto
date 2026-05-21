@@ -349,11 +349,11 @@ describe("PR review comment task flow", () => {
     expect(onRunComplete).toHaveBeenCalledWith(`${SLUG}#${String(PR_NUMBER)}`);
 
     const prepareCall = prepareWorktreeSpy.mock.calls[0]?.[0] as
-      | { baseBranch?: string }
+      | { mode?: string }
       | undefined;
     expect(prepareCall).toMatchObject({
       branch: "feature-branch",
-      baseBranch: "feature-branch"
+      mode: "existing"
     });
 
     const prCreate = server.requests.find(
