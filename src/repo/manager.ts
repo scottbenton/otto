@@ -341,7 +341,13 @@ export class RepoManager {
     worktreePath: string,
     branch: string
   ): Promise<void> {
-    await this.#gitRunner(["worktree", "add", worktreePath, branch], { cwd: repoPath });
+    if (!(await this.#remoteBranchExists(repoPath, branch))) {
+      throw new RepoManagerError(`Remote branch ${branch} does not exist; unable to modify it`);
+    }
+
+    await this.#gitRunner(["worktree", "add", "-B", branch, worktreePath, `origin/${branch}`], {
+      cwd: repoPath
+    });
   }
 
   async #addNewBranchWorktree(
@@ -390,16 +396,19 @@ export class RepoManager {
 
     await this.#assertCleanWorktree(worktreePath);
 
-    const upstreamBranch = mode === "existing" ? branch : baseBranch;
-    if (mode === "new") {
-      const unmergedCommits = await this.#countUnmergedCommits(repoPath, `origin/${baseBranch}`, branch);
-      if (unmergedCommits > 0) {
-        throw new RepoManagerError(
-          `Branch ${branch} already has unmerged commits; refusing to reset it`
-        );
-      }
+    if (mode === "existing") {
+      await this.#gitRunner(["reset", "--hard", `origin/${branch}`], { cwd: worktreePath });
+      return;
     }
-    await this.#gitRunner(["merge", "--ff-only", `origin/${upstreamBranch}`], {
+
+    const unmergedCommits = await this.#countUnmergedCommits(repoPath, `origin/${baseBranch}`, branch);
+    if (unmergedCommits > 0) {
+      throw new RepoManagerError(
+        `Branch ${branch} already has unmerged commits; refusing to reset it`
+      );
+    }
+
+    await this.#gitRunner(["merge", "--ff-only", `origin/${baseBranch}`], {
       cwd: worktreePath
     });
   }
