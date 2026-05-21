@@ -346,6 +346,13 @@ export class RepoManager {
       return;
     }
 
+    if (await this.#remoteBranchExists(repoPath, branch)) {
+      await this.#gitRunner(["worktree", "add", "-B", branch, worktreePath, `origin/${branch}`], {
+        cwd: repoPath
+      });
+      return;
+    }
+
     await this.#gitRunner(["worktree", "add", "-b", branch, worktreePath, baseRef], {
       cwd: repoPath
     });
