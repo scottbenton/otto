@@ -63,6 +63,13 @@ export class NonFastForwardError extends RepoManagerError {
   }
 }
 
+export class NoChangesError extends RepoManagerError {
+  constructor(message: string) {
+    super(message);
+    this.name = "NoChangesError";
+  }
+}
+
 export type PushBranchInput = {
   /** Path to the bare/primary repo clone (where git push runs). */
   repoPath: string;
@@ -198,6 +205,11 @@ export class RepoManager {
 
   async pushBranch(input: PushBranchInput): Promise<PushBranchResult> {
     const commits = await this.#getPushableCommits(input.worktreePath, input.branch);
+    if (commits.length === 0) {
+      throw new NoChangesError(
+        `No commits to push for branch ${input.branch}; refusing to report completion`
+      );
+    }
 
     const pushResult = await this.#gitRunner(
       ["push", "--porcelain", "origin", input.branch],

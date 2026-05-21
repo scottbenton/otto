@@ -91,6 +91,14 @@ describe("buildStatusComment()", () => {
     expect(body).toContain("To retry, post a new comment: otto retry");
   });
 
+  it("formats no-change failures without reporting completion", () => {
+    const body = buildStatusComment(IDENTITY, failedStatus("no-changes"));
+
+    expect(body).toContain("Status: failed");
+    expect(body).toContain("without producing any commits");
+    expect(body).not.toContain("Status: completed");
+  });
+
   it("includes agent summary in failed status when provided", () => {
     const body = buildStatusComment(
       IDENTITY,

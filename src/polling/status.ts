@@ -14,7 +14,12 @@ export type CompletedStatusOptions = {
   summary?: string;
 };
 
-export type FailedStatusReason = "runner-failed" | "timeout" | "push-failed" | "unknown";
+export type FailedStatusReason =
+  | "runner-failed"
+  | "timeout"
+  | "push-failed"
+  | "no-changes"
+  | "unknown";
 
 export type StatusTransition =
   | { status: "running" }
@@ -146,6 +151,8 @@ function failureDetail(reason: FailedStatusReason): string {
       return "The agent command timed out.";
     case "push-failed":
       return "Git push failed. Otto never force-pushes; pull/rebase locally and retry.";
+    case "no-changes":
+      return "The agent finished without producing any commits, so Otto did not push or report completion.";
     case "unknown":
       return "Otto could not complete the run.";
   }

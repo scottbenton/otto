@@ -10,7 +10,7 @@ import type { DispatchBatch } from "../polling/dispatch.js";
 import { completedStatus, failedStatus, updateStatusComment } from "../polling/status.js";
 import type { TriggerMatch } from "../polling/trigger.js";
 import type { RawComment } from "../polling/types.js";
-import { NonFastForwardError, type RepoManager } from "../repo/manager.js";
+import { NoChangesError, NonFastForwardError, type RepoManager } from "../repo/manager.js";
 import type { AgentRunResult, AgentRunner } from "../runner/types.js";
 
 export type ExecuteRunDeps = {
@@ -63,7 +63,7 @@ async function updateAllClaims(
 async function failAllClaims(
   github: GitHubClient,
   claims: ClaimEntry[],
-  reason: "runner-failed" | "timeout" | "push-failed" | "unknown",
+  reason: "runner-failed" | "timeout" | "push-failed" | "no-changes" | "unknown",
   summary?: string
 ): Promise<void> {
   await Promise.allSettled(
@@ -176,8 +176,12 @@ export async function executeRun(
 
     runLog.info({ branchUrl, pullRequestUrl }, "run completed");
   } catch (err) {
-    const reason: "push-failed" | "unknown" =
-      err instanceof NonFastForwardError ? "push-failed" : "unknown";
+    const reason: "push-failed" | "no-changes" | "unknown" =
+      err instanceof NonFastForwardError
+        ? "push-failed"
+        : err instanceof NoChangesError
+          ? "no-changes"
+          : "unknown";
     const errMsg = err instanceof Error ? err.message : String(err);
     runLog.error({ error: errMsg }, "run failed");
     await failAllClaims(github, claims, reason, errMsg);

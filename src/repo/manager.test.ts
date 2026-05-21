@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { StateStore } from "../state/store.js";
 import {
+  NoChangesError,
   NonFastForwardError,
   RepoManager,
   RepoManagerError,
@@ -721,6 +722,28 @@ describe("RepoManager.pushBranch()", () => {
     await expect(manager.pushBranch({ repoPath, worktreePath, branch })).rejects.toThrow(
       NonFastForwardError
     );
+  });
+
+  it("throws NoChangesError without pushing when there are no local commits", async () => {
+    const manager = new RepoManager({
+      reposDir,
+      worktreesDir,
+      stateStore: store,
+      gitRunner: createAdvancedRunner([
+        // git log origin/branch..HEAD
+        "",
+      ]),
+    });
+
+    await expect(manager.pushBranch({ repoPath, worktreePath, branch })).rejects.toThrow(
+      NoChangesError
+    );
+    expect(calls).toEqual([
+      {
+        args: ["log", "--format=%H", "origin/otto/owner-repo-123..HEAD"],
+        options: { cwd: worktreePath, allowNonZeroExit: true }
+      }
+    ]);
   });
 
   it("throws RepoManagerError (not NonFastForwardError) on other push failures", async () => {
