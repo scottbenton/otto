@@ -50,33 +50,6 @@ function normalizeAgentPrBody(body: string | undefined, issueNumber: number): st
   return [...withoutExistingClose, "", closingLine].join("\n") + COMMENT_FOOTER;
 }
 
-export type CreatePrForPrTaskInput = {
-  owner: string;
-  repo: string;
-  prNumber: number;
-  prTitle: string;
-  branch: string;
-  baseBranch: string;
-  agentPrBody?: string;
-};
-
-export async function createPrForPrTask(
-  client: GitHubClient,
-  input: CreatePrForPrTaskInput,
-): Promise<PullRequestInfo> {
-  const { owner, repo, prNumber, prTitle, branch, baseBranch, agentPrBody } = input;
-  const pr = await client.request<GitHubPullRequest>(`/repos/${owner}/${repo}/pulls`, {
-    method: "POST",
-    body: {
-      title: prTitle,
-      body: normalizeAgentPrBody(agentPrBody, prNumber),
-      head: branch,
-      base: baseBranch,
-    },
-  });
-  return { number: pr.number, htmlUrl: pr.html_url };
-}
-
 export async function createPrForIssueTask(
   client: GitHubClient,
   input: CreatePrInput

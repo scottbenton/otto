@@ -12,7 +12,7 @@ import {
   type FakeIssue,
   type FakeIssueComment,
   type FakePR,
-  type FakePRReviewComment,
+  type FakePRReviewComment
 } from "../testing/fake-github.js";
 import type { OttoLogger } from "../logger.js";
 import type { DispatchBatch } from "../polling/dispatch.js";
@@ -57,15 +57,17 @@ function makeRepoManager(options: StubRepoManagerOptions = {}): {
   prepareWorktreeSpy: ReturnType<typeof vi.fn>;
 } {
   const calls: RepoManagerCall[] = [];
-  const prepareWorktreeSpy = vi.fn().mockImplementation((input: { slug: string; branch: string }) => {
-    calls.push("prepareWorktree");
-    return Promise.resolve({
-      slug: input.slug,
-      path: join(rootDir, "worktree"),
-      branch: input.branch,
-      repoPath: join(rootDir, "repo")
+  const prepareWorktreeSpy = vi
+    .fn()
+    .mockImplementation((input: { slug: string; branch: string }) => {
+      calls.push("prepareWorktree");
+      return Promise.resolve({
+        slug: input.slug,
+        path: join(rootDir, "worktree"),
+        branch: input.branch,
+        repoPath: join(rootDir, "repo")
+      });
     });
-  });
   const manager = {
     prepareWorktree: prepareWorktreeSpy,
     pushBranch: vi.fn().mockImplementation((input: { branch: string }) => {
@@ -291,7 +293,7 @@ describe("PR review comment task flow", () => {
       user: { login: "bob" },
       labels: [],
       base: { ref: "main" },
-      head: { ref: "feature-branch", sha: "deadbeef" },
+      head: { ref: "feature-branch", sha: "deadbeef" }
     };
   }
 
@@ -302,7 +304,7 @@ describe("PR review comment task flow", () => {
       body: "Implementing the feature.",
       state: "open",
       user: { login: "bob" },
-      labels: [],
+      labels: []
     };
   }
 
@@ -318,11 +320,11 @@ describe("PR review comment task flow", () => {
       html_url: `${server.baseUrl}/${OWNER}/${REPO}/pull/${String(PR_NUMBER)}#pullrequestreviewcomment-${String(id)}`,
       path: "src/index.ts",
       patch: "@@ -1,3 +1,3 @@\n-old\n+new\n",
-      position: null,
+      position: null
     };
   }
 
-  it("bases the worktree on the PR head branch and creates a PR targeting it", async () => {
+  it("pushes directly to the existing PR head branch without creating another PR", async () => {
     server.addIssue(OWNER, REPO, makePRIssue());
     server.addPR(OWNER, REPO, makePR());
     server.addPRReviewComment(OWNER, REPO, makePRReviewComment(201));
@@ -336,7 +338,7 @@ describe("PR review comment task flow", () => {
 
     const batch: DispatchBatch<TriggerMatch> = {
       targetKey: `${SLUG}#${String(PR_NUMBER)}`,
-      items: matches,
+      items: matches
     };
 
     const runner = new MockRunner({ result: { success: true, summary: "Fixed it." } });
@@ -346,12 +348,17 @@ describe("PR review comment task flow", () => {
     expect(calls).toEqual(["prepareWorktree", "pushBranch", "releaseWorktree"]);
     expect(onRunComplete).toHaveBeenCalledWith(`${SLUG}#${String(PR_NUMBER)}`);
 
-    const prepareCall = prepareWorktreeSpy.mock.calls[0]?.[0] as { baseBranch?: string } | undefined;
-    expect(prepareCall).toMatchObject({ baseBranch: "feature-branch" });
+    const prepareCall = prepareWorktreeSpy.mock.calls[0]?.[0] as
+      | { baseBranch?: string }
+      | undefined;
+    expect(prepareCall).toMatchObject({
+      branch: "feature-branch",
+      baseBranch: "feature-branch"
+    });
 
     const prCreate = server.requests.find(
-      (r) => r.method === "POST" && r.path === `/repos/${OWNER}/${REPO}/pulls`,
+      (r) => r.method === "POST" && r.path === `/repos/${OWNER}/${REPO}/pulls`
     );
-    expect(prCreate?.body).toMatchObject({ base: "feature-branch" });
+    expect(prCreate).toBeUndefined();
   });
 });

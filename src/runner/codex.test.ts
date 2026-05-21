@@ -42,6 +42,7 @@ function makeContext(): HydratedGitHubContext {
       labels: ["bug"]
     },
     pullRequest: {
+      htmlUrl: "https://github.com/owner/repo/pull/42",
       baseBranch: "main",
       headBranch: "feature",
       headSha: "abc123"
@@ -89,7 +90,7 @@ async function writeFakeCodex(source: string): Promise<string> {
 describe("renderAgentPrompt() for Codex", () => {
   it("shares context rendering and asks for Otto JSON", () => {
     const prompt = renderAgentPrompt(makeInput(), {
-      systemPrompt: "shared system",
+      systemPrompt: "shared system"
     });
 
     expect(prompt).toContain("shared system");
@@ -156,7 +157,7 @@ process.stdout.write(JSON.stringify({ summary: JSON.stringify(payload) }));
       "danger-full-access",
       "--model",
       "gpt-5.4",
-      "<prompt>",
+      "<prompt>"
     ]);
     expect(payload.promptIncludesTask).toBe(true);
     expect(payload.promptRequiresJson).toBe(true);
@@ -173,7 +174,7 @@ process.stdout.write(JSON.stringify({
 `);
     const runner = new CodexRunner({
       id: "codex",
-      model: "gpt-5.4",
+      model: "gpt-5.4"
     });
 
     const result = await runner.run(makeInput());
@@ -186,7 +187,7 @@ process.stdout.write(JSON.stringify({
       "danger-full-access",
       "--model",
       "gpt-5.4",
-      "<prompt>",
+      "<prompt>"
     ]);
   });
 
@@ -235,7 +236,7 @@ describe("createAgentRunner() for Codex", () => {
   it("creates a CodexRunner from codex config", () => {
     const runner = createAgentRunner("codex", {
       type: "codex",
-      model: "gpt-5.4",
+      model: "gpt-5.4"
     });
 
     expect(runner).toBeInstanceOf(CodexRunner);

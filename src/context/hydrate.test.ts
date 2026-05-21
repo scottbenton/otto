@@ -15,15 +15,17 @@ function makeIssueComment(issueNumber = 1): IssueComment {
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
     html_url: `https://github.com/owner/repo/issues/${String(issueNumber)}#issuecomment-100`,
-    issue_url: `${BASE}/repos/owner/repo/issues/${String(issueNumber)}`,
+    issue_url: `${BASE}/repos/owner/repo/issues/${String(issueNumber)}`
   };
 }
 
-function makePrReviewComment(opts: {
-  id?: number;
-  prNumber?: number;
-  in_reply_to_id?: number;
-} = {}): PullRequestReviewComment {
+function makePrReviewComment(
+  opts: {
+    id?: number;
+    prNumber?: number;
+    in_reply_to_id?: number;
+  } = {}
+): PullRequestReviewComment {
   const { id = 200, prNumber = 2, in_reply_to_id } = opts;
   return {
     id,
@@ -34,7 +36,7 @@ function makePrReviewComment(opts: {
     updated_at: "2024-01-01T00:00:00Z",
     html_url: `https://github.com/owner/repo/pull/${String(prNumber)}#pullrequestreviewcomment-${String(id)}`,
     pull_request_url: `${BASE}/repos/owner/repo/pulls/${String(prNumber)}`,
-    ...(in_reply_to_id !== undefined ? { in_reply_to_id } : {}),
+    ...(in_reply_to_id !== undefined ? { in_reply_to_id } : {})
   };
 }
 
@@ -46,12 +48,16 @@ function makeIssueResponse(opts: { isPr?: boolean; labels?: string[] } = {}) {
     state: "open",
     user: { login: "alice" },
     labels: (opts.labels ?? ["bug"]).map((name) => ({ name })),
-    ...(opts.isPr === true ? { pull_request: { url: `${BASE}/repos/owner/repo/pulls/1` } } : {}),
+    ...(opts.isPr === true ? { pull_request: { url: `${BASE}/repos/owner/repo/pulls/1` } } : {})
   };
 }
 
 function makePullResponse(base = "main", head = "fix-branch", sha = "abc123") {
-  return { base: { ref: base }, head: { ref: head, sha } };
+  return {
+    html_url: "https://github.com/owner/repo/pull/1",
+    base: { ref: base },
+    head: { ref: head, sha }
+  };
 }
 
 function makeCommentResponse(count: number) {
@@ -59,7 +65,7 @@ function makeCommentResponse(count: number) {
     id: 1000 + i,
     user: { login: "bob" },
     body: `comment ${String(i)}`,
-    created_at: "2024-01-01T00:00:00Z",
+    created_at: "2024-01-01T00:00:00Z"
   }));
 }
 
@@ -69,7 +75,7 @@ function makeReviewResponse(count: number) {
     user: { login: "carol" },
     state: "APPROVED",
     body: null,
-    submitted_at: "2024-01-02T00:00:00Z",
+    submitted_at: "2024-01-02T00:00:00Z"
   }));
 }
 
@@ -82,16 +88,18 @@ function makeReviewCommentResponse(entries: { id: number; in_reply_to_id?: numbe
     path: "src/file.ts",
     patch: "@@ -1 +1 @@\n-old\n+new",
     position: 1,
-    ...(in_reply_to_id !== undefined ? { in_reply_to_id } : {}),
+    ...(in_reply_to_id !== undefined ? { in_reply_to_id } : {})
   }));
 }
 
-function makeReviewCommentDetails(opts: {
-  id?: number;
-  path?: string;
-  patch?: string | null;
-  position?: number | null;
-} = {}) {
+function makeReviewCommentDetails(
+  opts: {
+    id?: number;
+    path?: string;
+    patch?: string | null;
+    position?: number | null;
+  } = {}
+) {
   const { id = 200, path = "src/file.ts", patch = "@@ -1 +1 @@\n-old\n+new", position = 4 } = opts;
   return {
     id,
@@ -100,7 +108,7 @@ function makeReviewCommentDetails(opts: {
     created_at: "2024-01-01T00:00:00Z",
     path,
     patch,
-    position,
+    position
   };
 }
 
@@ -108,7 +116,7 @@ function makeContentResponse(content = "export const value = 1;\n") {
   return {
     type: "file",
     encoding: "base64",
-    content: Buffer.from(content, "utf8").toString("base64"),
+    content: Buffer.from(content, "utf8").toString("base64")
   };
 }
 
@@ -151,7 +159,7 @@ function makeClient(opts: ClientOpts = {}): GitHubClient {
       if (url.endsWith("/reviews")) return Promise.resolve(reviews);
       if (/\/pulls\/\d+\/comments$/.test(url)) return Promise.resolve(reviewComments);
       return Promise.resolve(comments);
-    }),
+    })
   } as unknown as GitHubClient;
 }
 
@@ -172,7 +180,7 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
 
   it("maps issue fields correctly", async () => {
     const client = makeClient({
-      issueResponse: makeIssueResponse({ labels: ["bug", "help wanted"] }),
+      issueResponse: makeIssueResponse({ labels: ["bug", "help wanted"] })
     });
     const ctx = await hydrateContext(client, [makeIssueComment()]);
     expect(ctx.issue.title).toBe("Fix the bug");
@@ -221,7 +229,9 @@ describe("hydrateContext() — IssueComment on a plain issue", () => {
   });
 
   it("handles null comment author", async () => {
-    const nullUserComment = [{ id: 1001, user: null, body: "anon", created_at: "2024-01-01T00:00:00Z" }];
+    const nullUserComment = [
+      { id: 1001, user: null, body: "anon", created_at: "2024-01-01T00:00:00Z" }
+    ];
     const client = makeClient({ comments: nullUserComment });
     const ctx = await hydrateContext(client, [makeIssueComment()]);
     if (ctx.kind !== "issue") throw new Error("Expected issue");
@@ -246,7 +256,7 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
   it("includes pullRequest branch refs", async () => {
     const client = makeClient({
       issueResponse: makeIssueResponse({ isPr: true }),
-      pullResponse: makePullResponse("main", "feature-branch"),
+      pullResponse: makePullResponse("main", "feature-branch")
     });
     const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
@@ -257,7 +267,7 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
   it("includes reviews", async () => {
     const client = makeClient({
       issueResponse: makeIssueResponse({ isPr: true }),
-      reviews: makeReviewResponse(2),
+      reviews: makeReviewResponse(2)
     });
     const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
@@ -268,7 +278,7 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
   it("populates inlineThread with PR conversation comments", async () => {
     const client = makeClient({
       issueResponse: makeIssueResponse({ isPr: true }),
-      comments: makeCommentResponse(2),
+      comments: makeCommentResponse(2)
     });
     const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
@@ -292,7 +302,9 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
   it("fetches reviews from pulls/{number}/reviews", async () => {
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
     await hydrateContext(client, [makeIssueComment(1)]);
-    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/1/reviews`);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(
+      `${BASE}/repos/owner/repo/pulls/1/reviews`
+    );
   });
 });
 
@@ -329,14 +341,18 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
     await hydrateContext(client, [comment]);
-    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/comments`);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(
+      `${BASE}/repos/owner/repo/pulls/2/comments`
+    );
   });
 
   it("fetches reviews from pull_request_url/reviews", async () => {
     const comment = makePrReviewComment({ prNumber: 2 });
     const client = makeClient({});
     await hydrateContext(client, [comment]);
-    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${BASE}/repos/owner/repo/pulls/2/reviews`);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(
+      `${BASE}/repos/owner/repo/pulls/2/reviews`
+    );
   });
 
   it("includes pullRequest branch refs", async () => {
@@ -367,8 +383,8 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
         id: 321,
         path: "src/old.ts",
         patch: "@@ -1 +1 @@",
-        position: null,
-      }),
+        position: null
+      })
     });
 
     const ctx = await hydrateContext(client, [makePrReviewComment({ id: 321 })]);
@@ -381,13 +397,13 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       patch: "@@ -1 +1 @@",
       position: null,
       clarifyMessage:
-        "This PR line comment is outdated because the code it was attached to has changed. Please ask Otto again on a current line or include the current context.",
+        "This PR line comment is outdated because the code it was attached to has changed. Please ask Otto again on a current line or include the current context."
     });
   });
 
   it("does not fetch file contents for an outdated PR line comment", async () => {
     const client = makeClient({
-      reviewCommentDetails: makeReviewCommentDetails({ position: null }),
+      reviewCommentDetails: makeReviewCommentDetails({ position: null })
     });
 
     await hydrateContext(client, [makePrReviewComment()]);
@@ -403,9 +419,9 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
         id: 321,
         path: "src/nested/file.ts",
         patch: "@@ -2 +2 @@\n-old\n+new",
-        position: 8,
+        position: 8
       }),
-      contentResponse: makeContentResponse("const current = true;\n"),
+      contentResponse: makeContentResponse("const current = true;\n")
     });
 
     const ctx = await hydrateContext(client, [makePrReviewComment({ id: 321 })]);
@@ -413,7 +429,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
     expect(requestMock(client)).toHaveBeenCalledWith(
       "/repos/owner/repo/contents/src/nested/file.ts",
-      { params: { ref: "head-sha" } },
+      { params: { ref: "head-sha" } }
     );
     expect(ctx.lineComments[0]).toEqual({
       outdated: false,
@@ -424,8 +440,8 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       currentFile: {
         path: "src/nested/file.ts",
         ref: "head-sha",
-        content: "const current = true;\n",
-      },
+        content: "const current = true;\n"
+      }
     });
   });
 
@@ -436,7 +452,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
         { id: 10 },
         { id: 11, in_reply_to_id: 10 },
         { id: 12, in_reply_to_id: 10 },
-        { id: 99 }, // different thread, no relation
+        { id: 99 } // different thread, no relation
       ]);
       const client = makeClient({ reviewComments });
       const ctx = await hydrateContext(client, [trigger]);
@@ -450,7 +466,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
         { id: 10 },
         { id: 11, in_reply_to_id: 10 },
         { id: 12, in_reply_to_id: 10 },
-        { id: 99 },
+        { id: 99 }
       ]);
       const client = makeClient({ reviewComments });
       const ctx = await hydrateContext(client, [trigger]);
@@ -484,7 +500,7 @@ describe("hydrateContext() — PullRequestReviewComment", () => {
       expect(ctx.inlineThread[0]).toMatchObject({
         id: 10,
         author: "dave",
-        body: "review comment 10",
+        body: "review comment 10"
       });
     });
   });

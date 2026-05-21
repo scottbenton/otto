@@ -43,6 +43,7 @@ function makeContext(): HydratedGitHubContext {
       labels: ["bug"]
     },
     pullRequest: {
+      htmlUrl: "https://github.com/owner/repo/pull/42",
       baseBranch: "main",
       headBranch: "feature",
       headSha: "abc123"
@@ -103,7 +104,7 @@ async function writeFakeClaude(source: string): Promise<string> {
 describe("renderAgentPrompt()", () => {
   it("renders task, GitHub context, reviews, comments, line contexts, and git instructions", () => {
     const prompt = renderAgentPrompt(makeInput(), {
-      systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT,
+      systemPrompt: DEFAULT_AGENT_SYSTEM_PROMPT
     });
 
     expect(prompt).toContain("Fix the specific lines of code");
@@ -122,7 +123,7 @@ describe("renderAgentPrompt()", () => {
 
   it("renders required JSON output instructions with comment IDs", () => {
     const prompt = renderAgentPrompt(makeInput(), {
-      systemPrompt: "system",
+      systemPrompt: "system"
     });
 
     expect(prompt).toContain("Output only a JSON object");
@@ -144,7 +145,7 @@ describe("renderAgentPrompt()", () => {
     ];
 
     const prompt = renderAgentPrompt(makeInput({ context }), {
-      systemPrompt: "system",
+      systemPrompt: "system"
     });
 
     expect(prompt).toContain("Status: outdated");
@@ -205,7 +206,7 @@ process.stdout.write(JSON.stringify({ summary: JSON.stringify(payload) }));
       "claude-test-model",
       "--dangerously-skip-permissions",
       "--permission-mode",
-      "bypassPermissions",
+      "bypassPermissions"
     ]);
     expect(payload.promptIncludesTask).toBe(true);
     expect(payload.promptRequiresJson).toBe(true);

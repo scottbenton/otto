@@ -7,7 +7,7 @@ import type {
   IssueDetails,
   PullRequestLineContext,
   PullRequestReview,
-  ThreadComment,
+  ThreadComment
 } from "./types.js";
 
 const MAX_COMMENTS = 200;
@@ -23,6 +23,7 @@ type GitHubIssueResponse = {
 };
 
 type GitHubPullResponse = {
+  html_url: string;
   base: { ref: string };
   head: { ref: string; sha: string };
 };
@@ -77,7 +78,7 @@ function toIssueDetails(raw: GitHubIssueResponse): IssueDetails {
     body: raw.body,
     state: raw.state,
     author: raw.user?.login ?? null,
-    labels: raw.labels.flatMap((l) => (l.name !== undefined ? [l.name] : [])),
+    labels: raw.labels.flatMap((l) => (l.name !== undefined ? [l.name] : []))
   };
 }
 
@@ -86,7 +87,7 @@ function toThreadComment(raw: GitHubCommentResponse): ThreadComment {
     id: raw.id,
     author: raw.user?.login ?? null,
     body: raw.body,
-    createdAt: raw.created_at,
+    createdAt: raw.created_at
   };
 }
 
@@ -96,21 +97,22 @@ function toReview(raw: GitHubReviewResponse): PullRequestReview {
     author: raw.user?.login ?? null,
     state: raw.state,
     body: raw.body,
-    submittedAt: raw.submitted_at,
+    submittedAt: raw.submitted_at
   };
 }
 
 function toPullRequestDetails(raw: GitHubPullResponse) {
   return {
+    htmlUrl: raw.html_url,
     baseBranch: raw.base.ref,
     headBranch: raw.head.ref,
-    headSha: raw.head.sha,
+    headSha: raw.head.sha
   };
 }
 
 async function fetchComments(
   client: GitHubClient,
-  commentsUrl: string,
+  commentsUrl: string
 ): Promise<{ comments: ThreadComment[]; truncated: boolean }> {
   const raw = await client.paginateAll<GitHubCommentResponse>(commentsUrl);
   const truncated = raw.length > MAX_COMMENTS;
@@ -119,7 +121,7 @@ async function fetchComments(
 
 function extractInlineThread(
   allComments: GitHubReviewCommentResponse[],
-  trigger: PullRequestReviewComment,
+  trigger: PullRequestReviewComment
 ): ThreadComment[] {
   // All replies in a GitHub thread point to the root comment via in_reply_to_id.
   const rootId = trigger.in_reply_to_id ?? trigger.id;
@@ -145,7 +147,7 @@ async function buildLineContext(
   owner: string,
   repo: string,
   headSha: string,
-  raw: GitHubReviewCommentResponse,
+  raw: GitHubReviewCommentResponse
 ): Promise<PullRequestLineContext> {
   if (raw.position === null) {
     return {
@@ -155,14 +157,13 @@ async function buildLineContext(
       patch: raw.patch,
       position: null,
       clarifyMessage:
-        "This PR line comment is outdated because the code it was attached to has changed. Please ask Otto again on a current line or include the current context.",
+        "This PR line comment is outdated because the code it was attached to has changed. Please ask Otto again on a current line or include the current context."
     };
   }
 
-  const file = await client.request<GitHubContentResponse>(
-    contentsUrl(owner, repo, raw.path),
-    { params: { ref: headSha } },
-  );
+  const file = await client.request<GitHubContentResponse>(contentsUrl(owner, repo, raw.path), {
+    params: { ref: headSha }
+  });
 
   return {
     outdated: false,
@@ -173,14 +174,14 @@ async function buildLineContext(
     currentFile: {
       path: raw.path,
       ref: headSha,
-      content: decodeContent(file),
-    },
+      content: decodeContent(file)
+    }
   };
 }
 
 async function hydrateFromIssueUrl(
   client: GitHubClient,
-  issueUrl: string,
+  issueUrl: string
 ): Promise<HydratedContext> {
   const { owner, repo, number } = parseRepoInfo(issueUrl);
   const issueRaw = await client.request<GitHubIssueResponse>(issueUrl);
@@ -191,7 +192,7 @@ async function hydrateFromIssueUrl(
     const [pullRaw, reviewsRaw, { comments: conversationComments }] = await Promise.all([
       client.request<GitHubPullResponse>(pullsUrl),
       client.paginateAll<GitHubReviewResponse>(`${pullsUrl}/reviews`),
-      fetchComments(client, `${issueUrl}/comments`),
+      fetchComments(client, `${issueUrl}/comments`)
     ]);
     return {
       kind: "pull_request",
@@ -202,7 +203,7 @@ async function hydrateFromIssueUrl(
       pullRequest: toPullRequestDetails(pullRaw),
       reviews: reviewsRaw.map(toReview),
       inlineThread: conversationComments,
-      lineComments: [],
+      lineComments: []
     };
   }
 
@@ -212,7 +213,7 @@ async function hydrateFromIssueUrl(
 
 async function hydrateFromPrUrl(
   client: GitHubClient,
-  triggers: PullRequestReviewComment[],
+  triggers: PullRequestReviewComment[]
 ): Promise<HydratedContext> {
   const anchor = triggers.at(-1);
   if (anchor === undefined) throw new Error("hydrateFromPrUrl requires at least one trigger");
@@ -225,14 +226,14 @@ async function hydrateFromPrUrl(
     client.request<GitHubIssueResponse>(issueUrl),
     client.request<GitHubPullResponse>(pullUrl),
     client.paginateAll<GitHubReviewResponse>(`${pullUrl}/reviews`),
-    client.paginateAll<GitHubReviewCommentResponse>(`${pullUrl}/comments`),
+    client.paginateAll<GitHubReviewCommentResponse>(`${pullUrl}/comments`)
   ]);
 
   const lineComments = await Promise.all(
     triggers.map(async (trigger) => {
       const reviewCommentRaw = await client.request<GitHubReviewCommentResponse>(trigger.url);
       return buildLineContext(client, owner, repo, pullRaw.head.sha, reviewCommentRaw);
-    }),
+    })
   );
 
   // Merge inline threads for all triggers, deduplicating by comment ID.
@@ -254,13 +255,13 @@ async function hydrateFromPrUrl(
     pullRequest: toPullRequestDetails(pullRaw),
     reviews: reviewsRaw.map(toReview),
     inlineThread,
-    lineComments,
+    lineComments
   };
 }
 
 export async function hydrateContext(
   client: GitHubClient,
-  comments: RawComment[],
+  comments: RawComment[]
 ): Promise<HydratedContext> {
   const last = comments.at(-1);
   if (last === undefined) throw new Error("hydrateContext requires at least one comment");
