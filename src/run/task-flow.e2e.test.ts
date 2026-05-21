@@ -54,18 +54,20 @@ function makeLogger(): OttoLogger {
 function makeRepoManager(options: StubRepoManagerOptions = {}): {
   manager: RepoManager;
   calls: RepoManagerCall[];
+  prepareWorktreeSpy: ReturnType<typeof vi.fn>;
 } {
   const calls: RepoManagerCall[] = [];
+  const prepareWorktreeSpy = vi.fn().mockImplementation((input: { slug: string; branch: string }) => {
+    calls.push("prepareWorktree");
+    return Promise.resolve({
+      slug: input.slug,
+      path: join(rootDir, "worktree"),
+      branch: input.branch,
+      repoPath: join(rootDir, "repo")
+    });
+  });
   const manager = {
-    prepareWorktree: vi.fn().mockImplementation((input: { slug: string; branch: string }) => {
-      calls.push("prepareWorktree");
-      return Promise.resolve({
-        slug: input.slug,
-        path: join(rootDir, "worktree"),
-        branch: input.branch,
-        repoPath: join(rootDir, "repo")
-      });
-    }),
+    prepareWorktree: prepareWorktreeSpy,
     pushBranch: vi.fn().mockImplementation((input: { branch: string }) => {
       calls.push("pushBranch");
       if (options.pushError !== undefined) return Promise.reject(options.pushError);
@@ -76,7 +78,7 @@ function makeRepoManager(options: StubRepoManagerOptions = {}): {
       return Promise.resolve();
     })
   } as unknown as RepoManager;
-  return { manager, calls };
+  return { manager, calls, prepareWorktreeSpy };
 }
 
 function makeIssue(number = 1): FakeIssue {
@@ -338,15 +340,14 @@ describe("PR review comment task flow", () => {
     };
 
     const runner = new MockRunner({ result: { success: true, summary: "Fixed it." } });
-    const { manager, calls } = makeRepoManager();
+    const { manager, calls, prepareWorktreeSpy } = makeRepoManager();
     const onRunComplete = await executeBatch(batch, runner, manager);
 
     expect(calls).toEqual(["prepareWorktree", "pushBranch", "releaseWorktree"]);
     expect(onRunComplete).toHaveBeenCalledWith(`${SLUG}#${String(PR_NUMBER)}`);
 
-    expect(vi.mocked(manager.prepareWorktree)).toHaveBeenCalledWith(
-      expect.objectContaining({ baseBranch: "feature-branch" }),
-    );
+    const prepareCall = prepareWorktreeSpy.mock.calls[0]?.[0] as { baseBranch?: string } | undefined;
+    expect(prepareCall).toMatchObject({ baseBranch: "feature-branch" });
 
     const prCreate = server.requests.find(
       (r) => r.method === "POST" && r.path === `/repos/${OWNER}/${REPO}/pulls`,
