@@ -265,18 +265,22 @@ describe("hydrateContext() — IssueComment on a PR (issue has pull_request fiel
     expect(ctx.reviews[0]).toMatchObject({ id: 2000, author: "carol", state: "APPROVED" });
   });
 
-  it("has empty inlineThread", async () => {
-    const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
+  it("populates inlineThread with PR conversation comments", async () => {
+    const client = makeClient({
+      issueResponse: makeIssueResponse({ isPr: true }),
+      comments: makeCommentResponse(2),
+    });
     const ctx = await hydrateContext(client, [makeIssueComment(1)]);
     if (ctx.kind !== "pull_request") throw new Error("Expected pull_request");
-    expect(ctx.inlineThread).toEqual([]);
+    expect(ctx.inlineThread).toHaveLength(2);
+    expect(ctx.inlineThread[0]).toMatchObject({ id: 1000, author: "bob", body: "comment 0" });
   });
 
-  it("does not fetch thread comments", async () => {
+  it("fetches conversation comments from issues/:number/comments", async () => {
+    const comment = makeIssueComment(1);
     const client = makeClient({ issueResponse: makeIssueResponse({ isPr: true }) });
-    await hydrateContext(client, [makeIssueComment(1)]);
-    const paginateCalls = paginateAllMock(client).mock.calls as [string][];
-    expect(paginateCalls.every(([url]) => !url.endsWith("/comments"))).toBe(true);
+    await hydrateContext(client, [comment]);
+    expect(paginateAllMock(client)).toHaveBeenCalledWith(`${comment.issue_url}/comments`);
   });
 
   it("fetches pulls URL derived from issue_url", async () => {

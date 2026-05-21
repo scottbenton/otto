@@ -41,6 +41,7 @@ export type FakeIssue = {
   state: string;
   user: { login: string } | null;
   labels: { name: string }[];
+  pull_request?: { url: string };
 };
 
 export type FakePR = {
@@ -279,8 +280,16 @@ export class FakeGitHubServer {
       return { status: 200, body: comment };
     }
 
-    // PATCH /repos/:owner/:repo/pulls/comments/:id
+    // GET /repos/:owner/:repo/pulls/comments/:id
     const prCommentIdMatch = /^\/pulls\/comments\/(\d+)$/.exec(rest);
+    if (prCommentIdMatch !== null && method === "GET") {
+      const id = Number(prCommentIdMatch[1]);
+      const comment = state.prReviewComments.find((c) => c.id === id);
+      if (comment === undefined) return { status: 404, body: { message: "Comment not found" } };
+      return { status: 200, body: comment };
+    }
+
+    // PATCH /repos/:owner/:repo/pulls/comments/:id
     if (prCommentIdMatch !== null && method === "PATCH") {
       const id = Number(prCommentIdMatch[1]);
       const comment = state.prReviewComments.find((c) => c.id === id);

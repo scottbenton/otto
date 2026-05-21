@@ -37,6 +37,8 @@ export type PreparedRepository = {
 export type PrepareWorktreeInput = PrepareRepositoryInput & {
   targetKey: string;
   branch: string;
+  /** Branch to base the new worktree on. Defaults to the repo's default branch. */
+  baseBranch?: string;
 };
 
 export type PreparedWorktree = {
@@ -151,7 +153,7 @@ export class RepoManager {
 
     if (!(await pathIsDirectory(worktreePath, "Worktree"))) {
       await mkdir(this.#worktreesDir, { recursive: true });
-      await this.#addWorktree(repo.path, worktreePath, input.branch, repo.defaultBranch);
+      await this.#addWorktree(repo.path, worktreePath, input.branch, input.baseBranch ?? repo.defaultBranch);
     }
 
     await this.#assertCleanWorktree(worktreePath);

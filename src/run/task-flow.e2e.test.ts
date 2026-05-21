@@ -7,7 +7,13 @@ import { GitHubClient } from "../github/client.js";
 import { NonFastForwardError, type RepoManager } from "../repo/manager.js";
 import { MockRunner } from "../runner/mock.js";
 import { StateStore } from "../state/store.js";
-import { FakeGitHubServer, type FakeIssue, type FakeIssueComment } from "../testing/fake-github.js";
+import {
+  FakeGitHubServer,
+  type FakeIssue,
+  type FakeIssueComment,
+  type FakePR,
+  type FakePRReviewComment,
+} from "../testing/fake-github.js";
 import type { OttoLogger } from "../logger.js";
 import type { DispatchBatch } from "../polling/dispatch.js";
 import { runPollingTick } from "../polling/poller.js";
@@ -48,18 +54,20 @@ function makeLogger(): OttoLogger {
 function makeRepoManager(options: StubRepoManagerOptions = {}): {
   manager: RepoManager;
   calls: RepoManagerCall[];
+  prepareWorktreeSpy: ReturnType<typeof vi.fn>;
 } {
   const calls: RepoManagerCall[] = [];
+  const prepareWorktreeSpy = vi.fn().mockImplementation((input: { slug: string; branch: string }) => {
+    calls.push("prepareWorktree");
+    return Promise.resolve({
+      slug: input.slug,
+      path: join(rootDir, "worktree"),
+      branch: input.branch,
+      repoPath: join(rootDir, "repo")
+    });
+  });
   const manager = {
-    prepareWorktree: vi.fn().mockImplementation((input: { slug: string; branch: string }) => {
-      calls.push("prepareWorktree");
-      return Promise.resolve({
-        slug: input.slug,
-        path: join(rootDir, "worktree"),
-        branch: input.branch,
-        repoPath: join(rootDir, "repo")
-      });
-    }),
+    prepareWorktree: prepareWorktreeSpy,
     pushBranch: vi.fn().mockImplementation((input: { branch: string }) => {
       calls.push("pushBranch");
       if (options.pushError !== undefined) return Promise.reject(options.pushError);
@@ -70,7 +78,7 @@ function makeRepoManager(options: StubRepoManagerOptions = {}): {
       return Promise.resolve();
     })
   } as unknown as RepoManager;
-  return { manager, calls };
+  return { manager, calls, prepareWorktreeSpy };
 }
 
 function makeIssue(number = 1): FakeIssue {
@@ -267,5 +275,83 @@ describe("task flow e2e", () => {
     expect(bodies[0]).toContain("Status: failed");
     expect(bodies[0]).toContain("Otto never force-pushes");
     expect(bodies[0]).toContain("To retry, post a new comment: otto retry");
+  });
+});
+
+describe("PR review comment task flow", () => {
+  const PR_NUMBER = 5;
+
+  function makePR(): FakePR {
+    return {
+      number: PR_NUMBER,
+      title: "My feature PR",
+      body: "Implementing the feature.",
+      state: "open",
+      html_url: `${server.baseUrl}/${OWNER}/${REPO}/pull/${String(PR_NUMBER)}`,
+      user: { login: "bob" },
+      labels: [],
+      base: { ref: "main" },
+      head: { ref: "feature-branch", sha: "deadbeef" },
+    };
+  }
+
+  function makePRIssue(): FakeIssue {
+    return {
+      number: PR_NUMBER,
+      title: "My feature PR",
+      body: "Implementing the feature.",
+      state: "open",
+      user: { login: "bob" },
+      labels: [],
+    };
+  }
+
+  function makePRReviewComment(id: number): FakePRReviewComment {
+    return {
+      id,
+      url: `${server.baseUrl}/repos/${OWNER}/${REPO}/pulls/comments/${String(id)}`,
+      body: "otto fix this",
+      user: { login: AUTH_USER },
+      created_at: "2026-05-19T12:00:00.000Z",
+      updated_at: "2026-05-19T12:00:00.000Z",
+      pull_request_url: server.pullUrl(OWNER, REPO, PR_NUMBER),
+      html_url: `${server.baseUrl}/${OWNER}/${REPO}/pull/${String(PR_NUMBER)}#pullrequestreviewcomment-${String(id)}`,
+      path: "src/index.ts",
+      patch: "@@ -1,3 +1,3 @@\n-old\n+new\n",
+      position: null,
+    };
+  }
+
+  it("bases the worktree on the PR head branch and creates a PR targeting it", async () => {
+    server.addIssue(OWNER, REPO, makePRIssue());
+    server.addPR(OWNER, REPO, makePR());
+    server.addPRReviewComment(OWNER, REPO, makePRReviewComment(201));
+
+    const results = await runPollingTick(client, state, [SLUG], AUTH_USER);
+    const comments = results.get(SLUG) ?? [];
+    const matches = comments
+      .map((c) => detectTrigger(c, SLUG, "otto"))
+      .filter((m): m is TriggerMatch => m !== null);
+    expect(matches).toHaveLength(1);
+
+    const batch: DispatchBatch<TriggerMatch> = {
+      targetKey: `${SLUG}#${String(PR_NUMBER)}`,
+      items: matches,
+    };
+
+    const runner = new MockRunner({ result: { success: true, summary: "Fixed it." } });
+    const { manager, calls, prepareWorktreeSpy } = makeRepoManager();
+    const onRunComplete = await executeBatch(batch, runner, manager);
+
+    expect(calls).toEqual(["prepareWorktree", "pushBranch", "releaseWorktree"]);
+    expect(onRunComplete).toHaveBeenCalledWith(`${SLUG}#${String(PR_NUMBER)}`);
+
+    const prepareCall = prepareWorktreeSpy.mock.calls[0]?.[0] as { baseBranch?: string } | undefined;
+    expect(prepareCall).toMatchObject({ baseBranch: "feature-branch" });
+
+    const prCreate = server.requests.find(
+      (r) => r.method === "POST" && r.path === `/repos/${OWNER}/${REPO}/pulls`,
+    );
+    expect(prCreate?.body).toMatchObject({ base: "feature-branch" });
   });
 });
