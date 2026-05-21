@@ -226,6 +226,59 @@ describe("OttoConfigSchema", () => {
     expect(result.agent.runners.codex).toEqual(config.agent.runners.codex);
   });
 
+  it("accepts an lmstudio runner with defaults", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "local",
+        runners: {
+          local: { type: "lmstudio", model: "qwen3-coder-30b" },
+        },
+      },
+    };
+    const result = OttoConfigSchema.parse(config);
+    expect(result.agent.runners.local).toEqual({
+      type: "lmstudio",
+      model: "qwen3-coder-30b",
+      modelTtlSeconds: 3600,
+    });
+  });
+
+  it("accepts an lmstudio runner with a custom model ttl", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "local",
+        runners: {
+          local: {
+            type: "lmstudio",
+            model: "qwen3-coder-30b",
+            modelTtlSeconds: 120,
+          },
+        },
+      },
+    };
+    const result = OttoConfigSchema.parse(config);
+    expect(result.agent.runners.local).toEqual(config.agent.runners.local);
+  });
+
+  it("rejects lmstudio runner internals in config", () => {
+    const config = {
+      ...validConfig,
+      agent: {
+        default: "local",
+        runners: {
+          local: {
+            type: "lmstudio",
+            model: "qwen3-coder-30b",
+            command: "lms-wrapper",
+          },
+        },
+      },
+    };
+    expect(() => OttoConfigSchema.parse(config)).toThrow();
+  });
+
   it("rejects codex runner auth internals in config", () => {
     const config = {
       ...validConfig,
