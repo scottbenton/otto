@@ -88,6 +88,7 @@ describe("RepoManager.prepareWorktree()", () => {
     });
     expect(calls).toEqual([
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       {
         args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: checkoutPath }
@@ -133,6 +134,7 @@ describe("RepoManager.prepareWorktree()", () => {
 
     expect(calls).toEqual([
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       { args: ["merge", "--ff-only", "origin/main"], options: { cwd: checkoutPath } },
       {
         args: ["branch", "--list", "--format=%(refname:short)", "otto/owner-repo-5-abc12345"],
@@ -167,6 +169,7 @@ describe("RepoManager.prepareWorktree()", () => {
 
     expect(calls).toEqual([
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       {
         args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: checkoutPath }
@@ -189,7 +192,7 @@ describe("RepoManager.prepareWorktree()", () => {
       reposDir,
       worktreesDir,
       stateStore: store,
-      gitRunner: createRunner(["", "", " M src/index.ts\n"])
+      gitRunner: createRunner(["", "", "", " M src/index.ts\n"])
     });
 
     await expect(
@@ -202,6 +205,7 @@ describe("RepoManager.prepareWorktree()", () => {
 
     expect(calls).toEqual([
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       {
         args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: checkoutPath }
@@ -222,7 +226,7 @@ describe("RepoManager.prepareWorktree()", () => {
       reposDir,
       worktreesDir,
       stateStore: store,
-      gitRunner: createRunner(["", "", "otto/owner-repo-123\n", "0\n", "", "", ""])
+      gitRunner: createRunner(["", "", "", "otto/owner-repo-123\n", "0\n", "", "", ""])
     });
 
     await manager.prepareWorktree({
@@ -234,6 +238,7 @@ describe("RepoManager.prepareWorktree()", () => {
     const worktreePath = join(worktreesDir, "owner-repo-123");
     expect(calls).toEqual([
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       {
         args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: checkoutPath }
@@ -269,7 +274,7 @@ describe("RepoManager.prepareWorktree()", () => {
       reposDir,
       worktreesDir,
       stateStore: store,
-      gitRunner: createRunner(["", "", "otto/owner-repo-123\n", "2\n"])
+      gitRunner: createRunner(["", "", "", "otto/owner-repo-123\n", "2\n"])
     });
 
     await expect(
@@ -282,6 +287,7 @@ describe("RepoManager.prepareWorktree()", () => {
 
     expect(calls).toEqual([
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       {
         args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: checkoutPath }
@@ -406,6 +412,7 @@ describe("RepoManager.prepareRepository()", () => {
     expect(checkout.defaultBranch).toBe("trunk");
     expect(calls).toEqual([
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "trunk"], options: { cwd: checkoutPath } },
       {
         args: ["merge", "--ff-only", "origin/trunk"],
         options: { cwd: checkoutPath }
@@ -419,7 +426,7 @@ describe("RepoManager.prepareRepository()", () => {
     const manager = new RepoManager({
       reposDir,
       stateStore: store,
-      gitRunner: createRunner(["origin/main\n", "", ""])
+      gitRunner: createRunner(["origin/main\n", "", "", ""])
     });
 
     await manager.prepareRepository({ slug: "owner/repo" });
@@ -430,6 +437,7 @@ describe("RepoManager.prepareRepository()", () => {
         options: { cwd: checkoutPath }
       },
       { args: ["fetch", "origin"], options: { cwd: checkoutPath } },
+      { args: ["checkout", "main"], options: { cwd: checkoutPath } },
       {
         args: ["merge", "--ff-only", "origin/main"],
         options: { cwd: checkoutPath }

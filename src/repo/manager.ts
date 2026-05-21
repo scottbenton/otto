@@ -134,6 +134,7 @@ export class RepoManager {
     if (await pathIsDirectory(checkoutPath, "Repository checkout")) {
       const defaultBranch = await this.#getOrResolveDefaultBranch(input.slug, checkoutPath);
       await this.#gitRunner(["fetch", "origin"], { cwd: checkoutPath });
+      await this.#gitRunner(["checkout", defaultBranch], { cwd: checkoutPath });
       await this.#gitRunner(["merge", "--ff-only", `origin/${defaultBranch}`], {
         cwd: checkoutPath
       });
