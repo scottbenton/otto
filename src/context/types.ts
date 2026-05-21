@@ -8,6 +8,7 @@ export type IssueDetails = {
 };
 
 export type PullRequestDetails = {
+  htmlUrl: string;
   baseBranch: string;
   headBranch: string;
   headSha: string;

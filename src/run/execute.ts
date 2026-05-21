@@ -3,15 +3,11 @@ import { randomUUID } from "node:crypto";
 import { hydrateContext } from "../context/hydrate.js";
 import { normalizeContext } from "../context/normalize.js";
 import type { GitHubClient } from "../github/client.js";
-import { createPrForIssueTask, createPrForPrTask } from "../github/pulls.js";
+import { createPrForIssueTask } from "../github/pulls.js";
 import type { OttoLogger } from "../logger.js";
 import { claimOrAbort, commentSourceKey } from "../polling/claim.js";
 import type { DispatchBatch } from "../polling/dispatch.js";
-import {
-  completedStatus,
-  failedStatus,
-  updateStatusComment,
-} from "../polling/status.js";
+import { completedStatus, failedStatus, updateStatusComment } from "../polling/status.js";
 import type { TriggerMatch } from "../polling/trigger.js";
 import type { RawComment } from "../polling/types.js";
 import { NonFastForwardError, type RepoManager } from "../repo/manager.js";
@@ -49,16 +45,18 @@ async function updateAllClaims(
   claims: ClaimEntry[],
   result: AgentRunResult,
   branchUrl: string,
-  pullRequestUrl: string | undefined,
+  pullRequestUrl: string | undefined
 ): Promise<void> {
   await Promise.allSettled(
     claims.map(({ comment, statusCommentId, identity }) => {
-      const summary = result.commentSummaries?.[comment.id] ?? (result.summary.length > 0 ? result.summary : undefined);
+      const summary =
+        result.commentSummaries?.[comment.id] ??
+        (result.summary.length > 0 ? result.summary : undefined);
       const opts: Parameters<typeof completedStatus>[0] = { branchUrl };
       if (pullRequestUrl !== undefined) opts.pullRequestUrl = pullRequestUrl;
       if (summary !== undefined) opts.summary = summary;
       return updateStatusComment(github, comment, statusCommentId, identity, completedStatus(opts));
-    }),
+    })
   );
 }
 
@@ -66,18 +64,18 @@ async function failAllClaims(
   github: GitHubClient,
   claims: ClaimEntry[],
   reason: "runner-failed" | "timeout" | "push-failed" | "unknown",
-  summary?: string,
+  summary?: string
 ): Promise<void> {
   await Promise.allSettled(
     claims.map(({ comment, statusCommentId, identity }) =>
-      updateStatusComment(github, comment, statusCommentId, identity, failedStatus(reason, summary)),
-    ),
+      updateStatusComment(github, comment, statusCommentId, identity, failedStatus(reason, summary))
+    )
   );
 }
 
 export async function executeRun(
   batch: DispatchBatch<TriggerMatch>,
-  deps: ExecuteRunDeps,
+  deps: ExecuteRunDeps
 ): Promise<void> {
   const { github, machineId, repoManager, agentRunner, timeoutMs, onRunComplete, logger } = deps;
 
@@ -101,7 +99,7 @@ export async function executeRun(
       comment: item.comment,
       taskDescription: item.taskDescription,
       statusCommentId: claim.statusCommentId,
-      identity: { runId: claim.runId, machineId, sourceKey: commentSourceKey(item.comment) },
+      identity: { runId: claim.runId, machineId, sourceKey: commentSourceKey(item.comment) }
     };
     claims.push(lastClaim);
   }
@@ -116,17 +114,20 @@ export async function executeRun(
 
   let worktreeAcquired = false;
   try {
-    const rawCtx = await hydrateContext(github, claims.map((c) => c.comment));
+    const rawCtx = await hydrateContext(
+      github,
+      claims.map((c) => c.comment)
+    );
     const ctx = normalizeContext(rawCtx);
 
     const taskDescription = buildTaskDescription(claims);
-    const branch = deriveBranch(batch.targetKey, batchRunId);
+    const branch = ctx.pullRequest?.headBranch ?? deriveBranch(batch.targetKey, batchRunId);
 
     const worktree = await repoManager.prepareWorktree({
       slug: repo,
       targetKey: batch.targetKey,
       branch,
-      ...(ctx.pullRequest !== null ? { baseBranch: ctx.pullRequest.headBranch } : {}),
+      ...(ctx.pullRequest !== null ? { baseBranch: ctx.pullRequest.headBranch } : {})
     });
     worktreeAcquired = true;
 
@@ -135,7 +136,7 @@ export async function executeRun(
       context: ctx,
       repoPaths: [worktree.path],
       capabilityGrants: agentRunner.capabilities,
-      timeoutMs,
+      timeoutMs
     });
 
     if (!result.success) {
@@ -149,7 +150,7 @@ export async function executeRun(
     const pushed = await repoManager.pushBranch({
       repoPath: worktree.repoPath,
       worktreePath: worktree.path,
-      branch: worktree.branch,
+      branch: worktree.branch
     });
     const branchUrl = `https://github.com/${repo}/tree/${pushed.branch}`;
 
@@ -160,7 +161,7 @@ export async function executeRun(
         repo: ctx.repo,
         issueNumber: ctx.number,
         issueTitle: ctx.issue.title,
-        branch: pushed.branch,
+        branch: pushed.branch
       };
       if (result.prBody !== undefined) {
         prInput.agentPrBody = result.prBody;
@@ -168,19 +169,7 @@ export async function executeRun(
       const pr = await createPrForIssueTask(github, prInput);
       pullRequestUrl = pr.htmlUrl;
     } else if (ctx.pullRequest !== null) {
-      const prInput: Parameters<typeof createPrForPrTask>[1] = {
-        owner: ctx.owner,
-        repo: ctx.repo,
-        prNumber: ctx.number,
-        prTitle: ctx.issue.title,
-        branch: pushed.branch,
-        baseBranch: ctx.pullRequest.headBranch,
-      };
-      if (result.prBody !== undefined) {
-        prInput.agentPrBody = result.prBody;
-      }
-      const pr = await createPrForPrTask(github, prInput);
-      pullRequestUrl = pr.htmlUrl;
+      pullRequestUrl = ctx.pullRequest.htmlUrl;
     }
 
     await updateAllClaims(github, claims, result, branchUrl, pullRequestUrl);

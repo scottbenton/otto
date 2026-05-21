@@ -7,7 +7,7 @@ import type {
   PullRequestDetails,
   PullRequestLineContext,
   PullRequestReview,
-  ThreadComment,
+  ThreadComment
 } from "./types.js";
 import { normalizeContext } from "./normalize.js";
 
@@ -17,13 +17,14 @@ const ISSUE: IssueDetails = {
   body: "It is broken",
   state: "open",
   author: "alice",
-  labels: ["bug"],
+  labels: ["bug"]
 };
 
 const PR_DETAILS: PullRequestDetails = {
+  htmlUrl: "https://github.com/owner/repo/pull/2",
   baseBranch: "main",
   headBranch: "fix-branch",
-  headSha: "abc123",
+  headSha: "abc123"
 };
 
 const REVIEW: PullRequestReview = {
@@ -31,14 +32,14 @@ const REVIEW: PullRequestReview = {
   author: "carol",
   state: "APPROVED",
   body: null,
-  submittedAt: "2024-01-02T00:00:00Z",
+  submittedAt: "2024-01-02T00:00:00Z"
 };
 
 const COMMENT: ThreadComment = {
   id: 42,
   author: "bob",
   body: "looks good",
-  createdAt: "2024-01-01T00:00:00Z",
+  createdAt: "2024-01-01T00:00:00Z"
 };
 
 const LINE_CONTEXT_CURRENT: PullRequestLineContext = {
@@ -47,7 +48,7 @@ const LINE_CONTEXT_CURRENT: PullRequestLineContext = {
   path: "src/foo.ts",
   patch: "@@ -1,3 +1,4 @@",
   position: 5,
-  currentFile: { path: "src/foo.ts", ref: "abc123", content: "export const x = 1;" },
+  currentFile: { path: "src/foo.ts", ref: "abc123", content: "export const x = 1;" }
 };
 
 const LINE_CONTEXT_OUTDATED: PullRequestLineContext = {
@@ -56,7 +57,7 @@ const LINE_CONTEXT_OUTDATED: PullRequestLineContext = {
   path: "src/bar.ts",
   patch: null,
   position: null,
-  clarifyMessage: "This comment is outdated.",
+  clarifyMessage: "This comment is outdated."
 };
 
 function makeIssueContext(overrides: Partial<IssueContext> = {}): IssueContext {
@@ -68,7 +69,7 @@ function makeIssueContext(overrides: Partial<IssueContext> = {}): IssueContext {
     issue: ISSUE,
     comments: [COMMENT],
     truncated: false,
-    ...overrides,
+    ...overrides
   };
 }
 
@@ -83,7 +84,7 @@ function makePrContext(overrides: Partial<PullRequestContext> = {}): PullRequest
     reviews: [REVIEW],
     inlineThread: [COMMENT],
     lineComments: [],
-    ...overrides,
+    ...overrides
   };
 }
 
