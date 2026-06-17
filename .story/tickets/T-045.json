@@ -1,12 +1,12 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "completedDate": "2026-05-20",
   "createdDate": "2026-05-17",
   "description": "Add an `otto init` CLI command that guides a new user through first-time setup interactively.\n\nFlow:\n1. Ask for GitHub personal access token (validate by calling GET /user, show the authenticated login on success)\n2. Ask which runner to use: claude or codex (present as a choice; codex requires OPENAI_API_KEY)\n3. For claude runner: confirm model (default claude-opus-4-7), offer to override\n4. For codex runner: confirm API key env var name (default OPENAI_API_KEY)\n5. Ask for the first repo to watch in owner/repo format (validate it exists and the token has access)\n6. Write the config file to the default location (~/.otto/config.yaml or platform equivalent) — abort if a config already exists unless --force is passed\n7. Print a summary of what was written and how to start the daemon (`otto start`)\n\nThe wizard should be non-interactive-friendly: all options can be passed as flags (`--token`, `--runner`, `--repo`, etc.) so it can be scripted. If all required flags are present, skip prompts entirely.",
   "id": "T-045",
   "order": 110,
   "phase": "p4",
-  "status": "open",
+  "status": "complete",
   "title": "otto init — first-run setup wizard",
   "type": "feature"
 }

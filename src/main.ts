@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { loadConfig } from "./config/index.js";
 import { createDaemon } from "./daemon.js";
 import { GitHubClient, resolveAuthenticatedUser } from "./github/index.js";
+import { runInit, type InitFlags } from "./init/index.js";
 import { createLogger } from "./logger.js";
 import { DispatchOrchestrator, PollingLoop } from "./polling/index.js";
 import { getTriggerTargetKey } from "./polling/dispatch.js";
@@ -19,6 +20,7 @@ import { StateStore } from "./state/store.js";
 import { registerShutdown } from "./shutdown.js";
 
 const DEFAULT_STATE_DIR = join(homedir(), ".otto");
+const DEFAULT_CONFIG_PATH = join(homedir(), ".otto", "config.yaml");
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 
 type CleanupCommand = {
@@ -27,25 +29,85 @@ type CleanupCommand = {
 };
 
 type ParsedArgs = {
+  subcommand: "daemon" | "init" | "cleanup";
   configPath: string | undefined;
   stateDir: string;
   cleanup: CleanupCommand | undefined;
+  init: InitFlags | undefined;
 };
 
 function parseArgs(argv: string[]): ParsedArgs | null {
   let configPath: string | undefined;
   let stateDir = DEFAULT_STATE_DIR;
   let cleanup: CleanupCommand | undefined;
+  let subcommand: ParsedArgs["subcommand"] = "daemon";
+
+  // init-specific flags
+  let initToken: string | undefined;
+  let initRunner: string | undefined;
+  let initModel: string | undefined;
+  let initApiKeyEnv: string | undefined;
+  let initRepo: string | undefined;
+  let initForce = false;
+  let initConfigPath = DEFAULT_CONFIG_PATH;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--config") {
+    if (arg === "init") {
+      subcommand = "init";
+    } else if (arg === "--token") {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        process.stderr.write("Error: --token requires a value\n");
+        return null;
+      }
+      initToken = next;
+      i++;
+    } else if (arg === "--runner") {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        process.stderr.write("Error: --runner requires a value\n");
+        return null;
+      }
+      initRunner = next;
+      i++;
+    } else if (arg === "--model") {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        process.stderr.write("Error: --model requires a value\n");
+        return null;
+      }
+      initModel = next;
+      i++;
+    } else if (arg === "--api-key-env") {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        process.stderr.write("Error: --api-key-env requires a value\n");
+        return null;
+      }
+      initApiKeyEnv = next;
+      i++;
+    } else if (arg === "--repo") {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith("-")) {
+        process.stderr.write("Error: --repo requires a value\n");
+        return null;
+      }
+      initRepo = next;
+      i++;
+    } else if (arg === "--force") {
+      initForce = true;
+    } else if (arg === "--config") {
       const next = argv[i + 1];
       if (next === undefined || next.startsWith("-")) {
         process.stderr.write("Error: --config requires a path argument\n");
         return null;
       }
-      configPath = next;
+      if (subcommand === "init") {
+        initConfigPath = next;
+      } else {
+        configPath = next;
+      }
       i++;
     } else if (arg === "--state-dir") {
       const next = argv[i + 1];
@@ -56,6 +118,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       stateDir = next;
       i++;
     } else if (arg === "cleanup") {
+      subcommand = "cleanup";
       const target = argv[i + 1];
       if (target !== "worktrees" && target !== "branches") {
         process.stderr.write("Error: cleanup requires 'worktrees' or 'branches'\n");
@@ -75,15 +138,25 @@ function parseArgs(argv: string[]): ParsedArgs | null {
           "otto — GitHub-triggered local agent runner",
           "",
           "Usage: otto [options]",
+          "       otto init [--token <tok>] [--runner <r>] [--model <m>] [--repo <owner/repo>] [--force]",
           "       otto cleanup worktrees [options] [--dry-run]",
           "       otto cleanup branches [options] [--dry-run]",
           "",
           "Options:",
-          "  --config <path>     Path to config file (default: ./otto.yaml or ~/.otto/config.yaml)",
-          "  --state-dir <path>  Path to state directory (default: ~/.otto)",
-          "  --dry-run           Print cleanup targets without deleting them",
-          "  --version           Print version and exit",
-          "  --help              Show this message",
+          "  --config <path>       Path to config file (default: ./otto.yaml or ~/.otto/config.yaml)",
+          "  --state-dir <path>    Path to state directory (default: ~/.otto)",
+          "  --dry-run             Print cleanup targets without deleting them",
+          "  --version             Print version and exit",
+          "  --help                Show this message",
+          "",
+          "Init options:",
+          "  --token <token>       GitHub personal access token",
+          "  --runner <runner>     Agent runner to use: claude or codex",
+          "  --model <model>       Model name for the selected runner",
+          "  --api-key-env <name>  Env var name for the OpenAI API key (codex runner only)",
+          "  --repo <owner/repo>   First repo to watch",
+          "  --force               Overwrite existing config",
+          "  --config <path>       Output config path (default: ~/.otto/config.yaml)",
           "",
         ].join("\n"),
       );
@@ -96,7 +169,20 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
   }
 
-  return { configPath, stateDir, cleanup };
+  const init: InitFlags | undefined =
+    subcommand === "init"
+      ? {
+          token: initToken,
+          runner: initRunner,
+          model: initModel,
+          apiKeyEnv: initApiKeyEnv,
+          repo: initRepo,
+          force: initForce,
+          configPath: initConfigPath,
+        }
+      : undefined;
+
+  return { subcommand, configPath, stateDir, cleanup, init };
 }
 
 function printCleanupSummary(
@@ -123,6 +209,11 @@ function printCleanupSummary(
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args === null) return;
+
+  if (args.subcommand === "init" && args.init !== undefined) {
+    await runInit(args.init);
+    return;
+  }
 
   const { configPath, stateDir } = args;
   const logger = createLogger();
